@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>ExplodeStudio Pro v6.28.7 - 3D爆炸图动画工作站</title>
+<title>ExplodeStudio Pro v6.28.9 - 3D爆炸图动画工作站</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;user-select:none}
   body{font-family:"Segoe UI",sans-serif;background:#1a1d23;color:#d8dce4;overflow:hidden;height:100vh;display:flex;flex-direction:column}
@@ -126,7 +126,8 @@
     </div>
     <div class="grp"><span class="gl">关键帧</span>
       <button class="btn" id="btnAddKey">◆ 打帧</button>
-      <button class="btn" id="btnCamKey" title="把当前相机视角打为关键帧">📷 相机</button>
+      <button class="btn" id="btnCamKey" title="把当前相机视角打为关键帧（点击=清除旧帧+插入；Shift+点击=仅替换当前时刻，用于多帧运镜）">📷 相机</button>
+      <button class="btn" id="btnCamClear" title="清除全部相机关键帧（播放时不再改变视角）">📷✕</button>
       <button class="btn" id="btnDelKey">✕ 删帧</button>
     </div>
     <div class="grp"><span class="gl">操作</span>
@@ -137,6 +138,7 @@
       <button class="btn" id="btnCurve" title="曲线编辑器">📈</button>
       <button class="btn" id="btnParticles" title="粒子系统">✨ 粒子</button>
       <button class="btn" id="btnSection" title="剖切动画（切割+实体剖面+关键帧+斜切）">▦ 剖面</button>
+      <button class="btn" id="btnLiquid" title="液体模拟（波动·零件搅动·泡沫）">💧 液体</button>
     </div>
     <div class="grp"><span class="gl">导出</span>
       <button class="btn warn" id="btnVideo">⬇ 视频</button>
@@ -320,6 +322,8 @@
 中键翻滚 · 右键平移
 🔒 锁视图 · 📐 角度参数
 ◎ 公转+螺旋（拧螺栓）
+💧 液体（搅拌涟漪）
+📷 相机帧(点击=锁定视角)
 F 聚焦 · ? 唤回提示</div>
     <div class="overlay" id="playInfo">00:00.00 / 00:10.00 | 30fps</div>
     <div class="overlay" id="selInfo"></div>
@@ -357,12 +361,12 @@ F 聚焦 · ? 唤回提示</div>
 <div id="statusbar">
   <span id="stParts">零件: 0</span><span id="stKeys">关键帧: 0</span><span id="stCam">相机帧: 0</span><span id="stSel">选中: 0</span>
   <span id="stDirty" style="color:#b8860b;display:none">● 未保存</span>
-  <span>📥导入选单位 · ◎公转/螺旋 · 整体旋转(实时) · 🔒锁视图 · 📐角度 · F聚焦</span>
+  <span>📷相机帧修复 · 📥导入选单位 · ◎公转/螺旋 · 💧液体 · 整体旋转(实时) · F聚焦</span>
 </div>
 
 <div id="exportModal" class="modal">
   <div class="box">
-    <h2>导出视频（物体+阴影+BOM+粒子+剖面）</h2>
+    <h2>导出视频（物体+阴影+BOM+粒子+剖面+液体）</h2>
     <label>分辨率
       <select id="expRes" style="width:100%;margin-top:4px">
         <option value="1280x720">720p</option>
@@ -396,7 +400,7 @@ F 聚焦 · ? 唤回提示</div>
     <h2>⬇ 导出 Web 交互页</h2>
     <div style="font-size:12px;color:#9aa4b4;line-height:1.8;margin-bottom:6px">
       导出一个可独立打开的交互式 3D 网页（爆炸动画 + 相机运镜 + BOM 标注
-      + 粒子 + 可交互剖面 + 整体旋转 + 公转/螺旋）。
+      + 粒子 + 可交互剖面 + 整体旋转 + 公转/螺旋 + 液体）。
     </div>
     <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:8px;border:1px solid #3d4654;border-radius:6px;margin:8px 0">
       <input type="radio" name="webMode" value="cdn" checked style="margin-top:3px">
@@ -596,6 +600,40 @@ F 聚焦 · ? 唤回提示</div>
     <div style="font-size:11px;color:#677;margin-top:12px">💡 开启黄色切割片显示后，<b style="color:#ffce3a">视口点击黄色切片</b>→ 拖动箭头直接调整剖面位置（自动记录关键帧）</div>
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
       <button class="btn" id="secClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="liquidModal" class="modal">
+  <div class="box">
+    <h2>💧 液体模拟</h2>
+    <div style="font-size:11px;color:#677;margin-bottom:6px">实时波动液面 · 移动的零件自动激起涟漪与泡沫（单向耦合：液体不反推物体）</div>
+    <label style="margin-top:4px"><input type="checkbox" id="lqOn"> 启用液体</label>
+    <label>容器（用该零件的包围盒）</label>
+    <select id="lqContainer" style="width:100%;margin-top:4px"></select>
+    <label>液位 <span id="lqLevelV">60%</span></label>
+    <input type="range" id="lqLevel" min="5" max="95" value="60">
+    <div class="pp-row">
+      <div><label>颜色</label><input type="color" id="lqColor" value="#3a8fd8" style="width:100%;height:28px"></div>
+      <div><label>透明度 <span id="lqOpV">50%</span></label><input type="range" id="lqOp" min="10" max="90" value="50"></div>
+    </div>
+    <div class="pp-row">
+      <div><label>波高 <span id="lqWaveV">1.0×</span></label><input type="range" id="lqWave" min="0" max="2.5" step="0.1" value="1"></div>
+      <div><label>粘滞 <span id="lqDampV">0.985</span></label><input type="range" id="lqDamp" min="0.90" max="0.999" step="0.001" value="0.985"></div>
+    </div>
+    <div class="pp-row">
+      <div><label>搅动强度 <span id="lqStirV">1.5</span></label><input type="range" id="lqStir" min="0" max="3" step="0.1" value="1.5"></div>
+      <div><label style="margin-top:18px"><input type="checkbox" id="lqFoam" checked> 泡沫</label></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn primary" id="lqDemo" title="自动生成 水槽+搅拌桨(公转)+液体 的演示">🎬 创建搅拌演示</button>
+    </div>
+    <div style="font-size:11px;color:#677;margin-top:10px;line-height:1.7">
+      💡 配方：建一个容器零件 → 容器选它 → 让其他零件用 ◎公转 / Gizmo / 关键帧在容器里移动 → 自动起波。<br>
+      粘滞越接近 1 荡得越久，越小越快平息。
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button class="btn" id="lqClose">关闭</button>
     </div>
   </div>
 </div>
@@ -805,6 +843,7 @@ const History={
       matPresets:State.matPresets,
       assemblySpin:State.assemblySpin,
       section:State.section, sectionKeys:State.sectionKeys,
+      liquid:JSON.parse(JSON.stringify(Liquid.cfg)),
       particles:Particles.serialize(),
       parts:State.parts.map(p=>({
         name:p.name,label:p.label,home:p.homePos.toArray(),
@@ -854,6 +893,11 @@ const History={
       if(d.assemblySpin){ State.assemblySpin=d.assemblySpin; syncSpinUI(); }
       if(d.section){ State.section=Object.assign({},d.section);
         State.sectionKeys=(d.sectionKeys||[]).map(k=>({...k})); }
+      if(d.liquid){ Object.assign(Liquid.cfg,d.liquid);
+        Liquid.cfg.box={...(d.liquid.box||Liquid.cfg.box)};
+        if(Liquid.cfg.on&&!Liquid._built)Liquid.build();
+        if(Liquid.mat)Liquid.mat.opacity=Liquid.cfg.opacity;
+        if(Liquid.bmat)Liquid.bmat.opacity=Liquid.cfg.opacity*.85; }
       document.getElementById('durInput').value=State.duration;
       document.getElementById('explodeAmt').value=State.explodeAmount;
       document.getElementById('explodeVal').textContent=State.explodeAmount+'%';
@@ -918,6 +962,7 @@ function evalProps(keys,t){
   return cloneP(last);
 }
 function cloneP(k){ return {exp:k.exp,pos:[...k.pos],rot:[...k.rot],sc:[...scOf(k)],op:k.op}; }
+/* ★ v6.28.9: evalCam 插值 up 向量（保持翻滚连续过渡） */
 function evalCam(keys,t){
   if(!keys.length) return null;
   if(t<=keys[0].t) return keys[0];
@@ -928,6 +973,13 @@ function evalCam(keys,t){
       const r=(t-a.t)/Math.max(1e-6,b.t-a.t), e=Ease[a.ease||'easeInOut'](r), o={pos:{},target:{}};
       for(const k in a.pos) o.pos[k]=a.pos[k]+(b.pos[k]-a.pos[k])*e;
       for(const k in a.target) o.target[k]=a.target[k]+(b.target[k]-a.target[k])*e;
+      if(a.up&&b.up){
+        let ux=a.up.x+(b.up.x-a.up.x)*e;
+        let uy=a.up.y+(b.up.y-a.up.y)*e;
+        let uz=a.up.z+(b.up.z-a.up.z)*e;
+        const L=Math.sqrt(ux*ux+uy*uy+uz*uz)||1;
+        o.up={x:ux/L,y:uy/L,z:uz/L};
+      }
       return o;
     }
   }
@@ -1352,6 +1404,14 @@ const Gizmo={
 };
 
 /* ==================== 视角书签 ==================== */
+/* ★ v6.28.9: 由球坐标(含roll)计算世界 up 向量 */
+function markUpVector(m){
+  const sp=Math.sin(m.phi),cp=Math.cos(m.phi);
+  const f=new THREE.Vector3(-Math.sin(m.theta)*sp,-cp,-Math.cos(m.theta)*sp);
+  const up=new THREE.Vector3(-Math.sin(m.theta)*cp,sp,-Math.cos(m.theta)*cp);
+  if(m.roll){ up.applyAxisAngle(f,m.roll); }
+  return up;
+}
 const Views={
   rebuild(){
     const sel=$('viewSel');
@@ -1398,9 +1458,12 @@ const Views={
       x:+(m.target[0]+Math.sin(m.theta)*sp*m.dist).toFixed(4),
       y:+(m.target[1]+cp*m.dist).toFixed(4),
       z:+(m.target[2]+Math.cos(m.theta)*sp*m.dist).toFixed(4)};
+    /* ★ v6.28.9: 同时存 up（含 roll），回放保留侧倾 */
+    const upW=markUpVector(m);
     State.camKeys=State.camKeys.filter(k=>Math.abs(k.t-State.time)>.02);
     State.camKeys.push({t:State.time,pos,
       target:{x:+m.target[0],y:+m.target[1],z:+m.target[2]},
+      up:{x:+upW.x.toFixed(4),y:+upW.y.toFixed(4),z:+upW.z.toFixed(4)},
       ease:document.getElementById('easingSel').value});
     State.camKeys.sort((a,b)=>a.t-b.t);
     UI.refresh();
@@ -1799,7 +1862,6 @@ function curHandle(){
   const s=Particles.cur();
   return (s&&s.selHandle>=0&&s.handles[s.selHandle])?s.handles[s.selHandle]:null;
 }
-/* ★ v6.28.7: 公转角/轴 + 螺旋上升量 */
 function partOrbitAngle(p){ return (p.pivotSpeed||0)*Math.PI/180*State.time; }
 function partOrbitAxisV(p){
   if(p.pivotAxis==='x') _oax.set(1,0,0);
@@ -1813,7 +1875,6 @@ function partScrewRise(p){
   return ((sp[0]+sp[1]+sp[2])*State.time/(Math.PI*2))*p.screwLead;
 }
 const _oq=new THREE.Quaternion(), _oax=new THREE.Vector3(), _wov=new THREE.Vector3();
-/* ★ v6.28.7: Gizmo 拖拽时先反解公转/螺旋，避免双重叠加 */
 function worldToOffset(p,wp){
   const q=p.keys.length?evalProps(p.keys,State.time):{exp:State.explodeAmount/100};
   const ex=p.explodeDir.clone().multiplyScalar(p.explodeDist*((q&&q.exp)||0));
@@ -1827,7 +1888,6 @@ function worldToOffset(p,wp){
   }
   p.offset=[wx-p.homePos.x-ex.x, wy-p.homePos.y-ex.y, wz-p.homePos.z-ex.z];
 }
-/* v6.28.4: 自动打帧关闭时，把零件动画轨道烘焙为静态值（保持世界位置不跳变） */
 function bakePartStatic(p,fromKeys){
   if(!p.keys||!p.keys.length) return false;
   const q=evalProps(p.keys,State.time);
@@ -2581,6 +2641,166 @@ const Section={
   }
 };
 
+/* ==================== 💧 液体系统（高度场波动·零件搅动·泡沫） ==================== */
+const Liquid={
+  cfg:{on:false,container:-1,box:{w:3,d:3,h:2.4},
+       level:.6,color:'#3a8fd8',opacity:.5,
+       waveScale:1,damp:.985,spread:.3,stir:1.5,foam:true,res:44},
+  surface:null,body:null,geo:null,mat:null,bmat:null,
+  h:null,v:null,N:0,prev:new Map(),_built:false,
+  build(){
+    if(this.surface){scene.remove(this.surface);this.geo.dispose();this.mat.dispose();}
+    if(this.body){scene.remove(this.body);this.bmat.dispose();}
+    this.N=this.cfg.res;
+    const n=this.N;
+    this.geo=new THREE.PlaneGeometry(1,1,n-1,n-1);
+    this.geo.rotateX(-Math.PI/2);
+    this.h=new Float32Array(n*n); this.v=new Float32Array(n*n);
+    this.geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(n*n*3),3));
+    this.mat=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,
+      opacity:this.cfg.opacity,roughness:.08,metalness:0,vertexColors:true,
+      envMap:getEnv(),envMapIntensity:1.1,side:THREE.DoubleSide});
+    this.surface=new THREE.Mesh(this.geo,this.mat);
+    this.surface.renderOrder=10; scene.add(this.surface);
+    this.bmat=new THREE.MeshPhysicalMaterial({color:this.cfg.color,transparent:true,
+      opacity:this.cfg.opacity*.85,roughness:.15,metalness:0,depthWrite:false});
+    this.body=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),this.bmat);
+    this.body.renderOrder=9; scene.add(this.body);
+    this._built=true;
+  },
+  bounds(){
+    if(this.cfg.container>=0&&State.parts[this.cfg.container]){
+      const p=State.parts[this.cfg.container];
+      p.mesh.updateWorldMatrix(true,false);
+      const g=p.mesh.geometry;
+      if(!g.boundingBox)g.computeBoundingBox();
+      return g.boundingBox.clone().applyMatrix4(p.mesh.matrixWorld);
+    }
+    const b=this.cfg.box;
+    return new THREE.Box3(new THREE.Vector3(-b.w/2,0,-b.d/2),
+                          new THREE.Vector3(b.w/2,b.h,b.d/2));
+  },
+  update(dt){
+    const on=this.cfg.on&&this._built;
+    if(this.surface)this.surface.visible=!!on;
+    if(this.body)this.body.visible=!!on;
+    if(!on)return;
+    const bx=this.bounds();
+    if(bx.isEmpty())return;
+    const N=this.N;
+    const sy=bx.min.y+(bx.max.y-bx.min.y)*THREE.MathUtils.clamp(this.cfg.level,.02,.98);
+    const w=(bx.max.x-bx.min.x)*.985, d=(bx.max.z-bx.min.z)*.985;
+    this.surface.position.set((bx.min.x+bx.max.x)/2,sy,(bx.min.z+bx.max.z)/2);
+    this.surface.scale.set(w,1,d);
+    this.body.position.set((bx.min.x+bx.max.x)/2,(bx.min.y+sy)/2,(bx.min.z+bx.max.z)/2);
+    this.body.scale.set(Math.max(.01,w*.995),Math.max(.01,sy-bx.min.y),Math.max(.01,d*.995));
+    const h=this.h, vv=this.v, sp=this.cfg.spread, damp=this.cfg.damp;
+    for(let y=1;y<N-1;y++){ const row=y*N;
+      for(let x=1;x<N-1;x++){ const i=row+x;
+        vv[i]+=((h[i-1]+h[i+1]+h[i-N]+h[i+N])*.25-h[i])*sp;
+        vv[i]*=damp;
+      }}
+    for(let i=0;i<N*N;i++)h[i]+=vv[i];
+    const vel=new THREE.Vector3();
+    State.parts.forEach((p,pi)=>{
+      const cur=p.mesh.position;
+      const prev=this.prev.get(pi);
+      if(prev)vel.copy(cur).sub(prev).divideScalar(Math.max(dt,1e-3));
+      else vel.set(0,0,0);
+      this.prev.set(pi,cur.clone());
+      const speed=vel.length();
+      if(speed<.06)return;
+      if(cur.x<bx.min.x||cur.x>bx.max.x||cur.z<bx.min.z||cur.z>bx.max.z)return;
+      const g=p.mesh.geometry;
+      if(!g.boundingBox)g.computeBoundingBox();
+      const bb=g.boundingBox.clone().applyMatrix4(p.mesh.matrixWorld);
+      if(bb.max.y<sy&&speed<.6)return;
+      const gx=Math.floor(((cur.x-bx.min.x)/(bx.max.x-bx.min.x))*(N-1));
+      const gz=Math.floor(((cur.z-bx.min.z)/(bx.max.z-bx.min.z))*(N-1));
+      const R=Math.max(1,Math.round(Math.min(
+        this._radius(p)*(N-1)/Math.max(w,d), N/4)));
+      const amp=Math.min(1.2,speed*.14)*this.cfg.stir;
+      for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
+        const xx=gx+dx, zz=gz+dy;
+        if(xx<1||zz<1||xx>=N-1||zz>=N-1)continue;
+        const fall=Math.exp(-(dx*dx+dy*dy)/Math.max(.5,R*R*.4));
+        vv[zz*N+xx]-=amp*fall;
+      }
+    });
+    const base=new THREE.Color(this.cfg.color);
+    const pa=this.geo.attributes.position, ca=this.geo.attributes.color;
+    for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+      const i=y*N+x;
+      const hh=h[i]*this.cfg.waveScale;
+      const ah=Math.abs(hh);
+      pa.setXYZ(i, x/(N-1)-.5, hh, y/(N-1)-.5);
+      const foam=this.cfg.foam?THREE.MathUtils.clamp((ah-.04)*5,0,1):0;
+      ca.setXYZ(i, base.r+(1-base.r)*foam, base.g+(1-base.g)*foam, base.b+(1-base.b)*foam);
+    }
+    pa.needsUpdate=true; ca.needsUpdate=true;
+    this.geo.computeVertexNormals();
+    this.bmat.color.set(this.cfg.color);
+  },
+  _radius(p){
+    const g=p.mesh.geometry;
+    if(!g.boundingBox)g.computeBoundingBox();
+    return THREE.MathUtils.clamp(g.boundingBox.getSize(new THREE.Vector3()).length()*.5,.05,.6);
+  },
+  fill(){
+    $('lqOn').checked=this.cfg.on;
+    const sel=$('lqContainer');
+    let o='<option value="-1">自定义盒（原点）</option>';
+    State.parts.forEach((p,i)=>{o+='<option value="'+i+'">'+(i+1)+'. '+p.name+'</option>';});
+    sel.innerHTML=o; sel.value=String(this.cfg.container??-1);
+    $('lqLevel').value=Math.round(this.cfg.level*100); $('lqLevelV').textContent=Math.round(this.cfg.level*100)+'%';
+    $('lqColor').value=this.cfg.color;
+    $('lqOp').value=Math.round(this.cfg.opacity*100);  $('lqOpV').textContent=Math.round(this.cfg.opacity*100)+'%';
+    $('lqWave').value=this.cfg.waveScale;              $('lqWaveV').textContent=(+this.cfg.waveScale).toFixed(1)+'×';
+    $('lqDamp').value=this.cfg.damp;                   $('lqDampV').textContent=(+this.cfg.damp).toFixed(3);
+    $('lqStir').value=this.cfg.stir;                   $('lqStirV').textContent=(+this.cfg.stir).toFixed(1);
+    $('lqFoam').checked=!!this.cfg.foam;
+  },
+  apply(){
+    History.push('liquid');
+    this.cfg.on=$('lqOn').checked;
+    this.cfg.container=+$('lqContainer').value;
+    this.cfg.level=+$('lqLevel').value/100;
+    this.cfg.color=$('lqColor').value;
+    this.cfg.opacity=+$('lqOp').value/100;
+    this.cfg.waveScale=+$('lqWave').value;
+    this.cfg.damp=+$('lqDamp').value;
+    this.cfg.stir=+$('lqStir').value;
+    this.cfg.foam=$('lqFoam').checked;
+    if(this.cfg.on&&!this._built)this.build();
+    if(!this.cfg.on)this.prev.clear();
+    if(this.mat)this.mat.opacity=this.cfg.opacity;
+    if(this.bmat)this.bmat.opacity=this.cfg.opacity*.85;
+    updateToolbar();
+  },
+  stirDemo(){
+    History.push('liquidDemo');
+    const cx=9;
+    const tank=makePart(new THREE.CylinderGeometry(1.5,1.5,2.4,48,1,true),'水槽',
+      new THREE.Vector3(cx,1.2,0));
+    tank.mesh.material.side=THREE.DoubleSide;
+    tank.mesh.material.opacity=.6;
+    const pd=makePart(new THREE.BoxGeometry(.16,.9,1.5),'搅拌桨',
+      new THREE.Vector3(cx+.95,1.8,0));
+    pd.pivot=State.parts.indexOf(tank);
+    pd.pivotSpeed=90; pd.pivotAxis='y'; pd.pivotFollow=true;
+    pd.spin=[0,.5,0];
+    pd.explodeDir.set(0,1,0); pd.explodeDist=.5;
+    this.cfg.on=true;
+    this.cfg.container=State.parts.indexOf(tank);
+    this.cfg.level=.6; this.cfg.stir=1.8; this.cfg.color='#3a8fd8';
+    if(!this._built)this.build();
+    this.fill();
+    State._initFull=captureInit();
+    UI.refresh();
+    UI.toast('💧 搅拌演示已创建：水槽+桨(◎公转90°/s)+液体 — F 聚焦后播放');
+  }
+};
+
 /* ==================== 演示装配体 ==================== */
 const PALETTE=[0xc0392b,0xe67e22,0xf1c40f,0x27ae60,0x16a085,0x2980b9,0x8e44ad,0xecf0f1,0x95a5a6,0x7f8c8d];
 function makePart(geo,name,pos){
@@ -2649,7 +2869,6 @@ function computeExplodeVectors(mode){
     }
   });
 }
-/* ★ v6.28.7: 整体旋转(实时) + 螺旋导程 + 绕零件公转（两段式·活轴心） */
 const _tmp=new THREE.Vector3(), _tmp2=new THREE.Vector3();
 function applyExplode(){
   if(State.gizmoDragging) return;
@@ -2664,7 +2883,7 @@ function applyExplode(){
     _tmp.copy(p.homePos)
       .addScaledVector(p.explodeDir,p.explodeDist*(q.exp||0))
       .add(_tmp2.set(q.pos[0],q.pos[1],q.pos[2]));
-    _tmp.y+=partScrewRise(p);                        /* ★ 螺旋导程 */
+    _tmp.y+=partScrewRise(p);
     if(spinOn&&gq){ _tmp.sub(c).applyQuaternion(gq).add(c); }
     if(anyOrbit) pre[i]=_tmp.clone();
     p.mesh.position.copy(_tmp);
@@ -2691,7 +2910,6 @@ function applyExplode(){
       }
     }
   });
-  /* ★ 绕零件公转：位置绕目标零件本帧位置旋转（姿态可选跟随） */
   if(anyOrbit){
     State.parts.forEach((p,i)=>{
       if(!(p.pivot>=0&&State.parts[p.pivot]&&p.pivotSpeed)) return;
@@ -2711,11 +2929,16 @@ function applyExplode(){
 
 /* ==================== 相机运镜 ==================== */
 let camWasDriven=false;
+/* ★ v6.28.9: 使用关键帧存储的 up 向量（保留翻滚） */
 function applyCameraAnim(){
   const c=evalCam(State.camKeys,State.time);
   if(c){
     camera.position.set(c.pos.x,c.pos.y,c.pos.z);
-    camera.up.set(0,1,0);
+    if(c.up){
+      camera.up.set(c.up.x,c.up.y,c.up.z);
+    }else{
+      camera.up.set(0,1,0);
+    }
     Orbit.target.set(c.target.x,c.target.y,c.target.z);
     camera.lookAt(Orbit.target);
   }
@@ -3015,6 +3238,7 @@ const Anim={
         }
         Particles.update(State.time);
         Section.apply(State.time);
+        Liquid.update(dt);
         selHelpers.forEach(h=>h.update());
         renderer.render(scene,camera);
         Gizmo.render();
@@ -3030,6 +3254,7 @@ function sync(){
   if(State.camAnim && State.camKeys.length){ applyCameraAnim(); camWasDriven=true; }
   Particles.update(State.time);
   Section.apply(State.time);
+  Liquid.update(1/30);
   updateBOM();
 }
 
@@ -3061,6 +3286,7 @@ function updateToolbar(){
   $('btnParticles').textContent='✨ 粒子'+(Particles.systems.length?('×'+Particles.systems.filter(s=>s.on).length):'');
   $('btnParticles').classList.toggle('on',Particles.anyOn());
   $('btnSection').classList.toggle('on',State.section.on);
+  $('btnLiquid').classList.toggle('on',Liquid.cfg.on);
   $('asmSpinOff').classList.toggle('on',Spin.active());
   updateHistoryBtns();
 }
@@ -3074,6 +3300,7 @@ function captureInit(){
     bg:State.bg,
     section:{...State.section}, sectionKeys:[],
     camKeys:[], bomKeys:[],
+    liquid:JSON.parse(JSON.stringify(Liquid.cfg)),
     particles:Particles.serialize(),
     parts:State.parts.map(p=>({
       name:p.name,label:p.label,
@@ -3114,6 +3341,12 @@ function restoreInit(json){
   }
   applyBackground();
   syncSpinUI();
+  if(d.liquid){
+    Object.assign(Liquid.cfg,d.liquid);
+    Liquid.cfg.box={...(d.liquid.box||Liquid.cfg.box)};
+    if(Liquid.cfg.on&&!Liquid._built)Liquid.build();
+    Liquid.prev.clear();
+  }
   d.parts.forEach((sp,i)=>{
     const p=State.parts[i]; if(!p)return;
     p.name=sp.name; p.label=sp.label;
@@ -3207,17 +3440,28 @@ const UI={
     UI.refresh(); sync();
     UI.toast('已为 '+targets.length+' 个零件在 '+State.time.toFixed(2)+'s 打关键帧');
   },
-  addCamKeyframe(){
+  /* ★ v6.28.9: 相机关键帧修复
+     - 捕获世界 up 向量（保留翻滚/侧倾）
+     - 普通点击 = 清除全部旧相机帧（含演示预设）后插入 → 播放锁定当前视角
+     - Shift+点击 = 仅替换当前时刻的帧（不清除其他，用于多帧运镜） */
+  addCamKeyframe(e){
     History.push('camKey');
     const ease=document.getElementById('easingSel').value;
+    const shift=e&&e.shiftKey;
+    if(!shift){
+      State.camKeys=[];
+    }
     State.camKeys=State.camKeys.filter(k=>Math.abs(k.t-State.time)>.02);
+    const upW=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
     State.camKeys.push({t:State.time,
       pos:{x:+camera.position.x.toFixed(4),y:+camera.position.y.toFixed(4),z:+camera.position.z.toFixed(4)},
       target:{x:+Orbit.target.x.toFixed(4),y:+Orbit.target.y.toFixed(4),z:+Orbit.target.z.toFixed(4)},
+      up:{x:+upW.x.toFixed(4),y:+upW.y.toFixed(4),z:+upW.z.toFixed(4)},
       ease});
     State.camKeys.sort((a,b)=>a.t-b.t);
     UI.refresh();
-    UI.toast('相机关键帧 @ '+State.time.toFixed(2)+'s');
+    UI.toast('相机关键帧 @ '+State.time.toFixed(2)+'s'
+      +(shift?'（替换当前时刻）':'（已清除旧相机帧·仅保留此帧）'));
   },
   toggleAutoKey(){ State.autoKey=!State.autoKey; updateToolbar(); },
   toggleBOM(){ State.bomOn=!State.bomOn; updateToolbar(); updateBOM(); },
@@ -3292,7 +3536,7 @@ const UI={
     restoreInit(State._initFull);
     History.clear();
     setDirty(true);
-    UI.toast('已复位到初始状态 ↺（零件/动画/爆炸/整体旋转/剖面/公转全部还原）');
+    UI.toast('已复位到初始状态 ↺（零件/动画/爆炸/整体旋转/剖面/公转/液体全部还原）');
   },
   autoGenBOMKeys(){
     State.bomKeys=State.parts.map((p,i)=>{
@@ -3378,6 +3622,7 @@ const UI={
         State.bomKeys=State.bomKeys.map(k=>({t:k.t,pi:State.parts.indexOf(refs[k.pi])}))
                                     .filter(k=>k.pi>=0);
         State.parts.forEach(pp=>{ if(pp.pivot>=0) pp.pivot=State.parts.indexOf(refs[pp.pivot]); });
+        if(Liquid.cfg.container>=0) Liquid.cfg.container=State.parts.indexOf(refs[Liquid.cfg.container]);
         UI.toast('已调整顺序: '+moved.name);
         UI.refresh(); sync();
       });
@@ -3414,7 +3659,6 @@ const UI={
     const sp=p.spin||[0,0,0];
     set('ppSX',Math.round(sp[0]*D)); set('ppSY',Math.round(sp[1]*D)); set('ppSZ',Math.round(sp[2]*D));
     set('ppPX',(+q.pos[0]).toFixed(2)); set('ppPY',(+q.pos[1]).toFixed(2)); set('ppPZ',(+q.pos[2]).toFixed(2));
-    /* ★ v6.28.7: 公转/螺旋回填 */
     const pv=document.getElementById('ppPivot');
     let pvOpts='<option value="-1">无</option>';
     State.parts.forEach((pp,j)=>{ if(j!==State.sel[0]) pvOpts+='<option value="'+j+'">'+(j+1)+'. '+pp.name+'</option>'; });
@@ -3810,6 +4054,7 @@ const Importer={
     State.assemblySpin={x:0,y:0,z:0};
     Spin.reset();
     syncSpinUI();
+    Liquid.cfg.on=false; Liquid.prev.clear();
     Particles.rebuildAll();
     Section.rebuild();
     buildBOMTags(); UI.refresh(); sync();
@@ -4171,6 +4416,9 @@ const Exporter={
     const shadowWas=ground.visible;
     const handlesVis=Particles.systems.map(s=>s.handleGroup?s.handleGroup.visible:false);
     const spinAngSave={...Spin.ang};
+    const prevSave=new Map(Liquid.prev);
+    const hSave=Liquid.h?Liquid.h.slice():null;
+    const vSave=Liquid.v?Liquid.v.slice():null;
     State.recording=true; State.playing=false;
     document.getElementById('btnPlay').textContent='▶ 播放';
     document.getElementById('recIndicator').style.display='block';
@@ -4202,6 +4450,9 @@ const Exporter={
       updateToolbar();
       SafeFrame.update();
       Spin.ang=spinAngSave;
+      Liquid.prev=prevSave;
+      if(hSave)Liquid.h.set(hSave);
+      if(vSave)Liquid.v.set(vSave);
       State.time=0; resize(); sync();
     };
     try{ rec.start(); }catch(e){ restore(); UI.toast('录制启动失败'); return; }
@@ -4214,6 +4465,7 @@ const Exporter={
         applyExplode();
         Particles.update(State.time);
         Section.apply(State.time);
+        Liquid.update(1/fps);
         if(State.camAnim&&State.camKeys.length) applyCameraAnim();
         renderer.setSize(w,h,false);
         camera.aspect=w/h; camera.updateProjectionMatrix();
@@ -4392,8 +4644,8 @@ const Exporter={
       +'var b=new THREE.Mesh(p.mesh.geometry,mf);b.renderOrder=1;g.add(a);g.add(b);g.visible=false;'
       +'SST.add(g);p._sg=g;});\n'
       +'var SCAP=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshStandardMaterial({color:SEC.capColor,roughness:.6,metalness:.1,'
-      +'stencilWrite:true,stencilRef:0,stencilFunc:THREE.NotEqualStencilFunc,'
-      +'stencilFail:THREE.ReplaceStencilOp,stencilZFail:THREE.ReplaceStencilOp,stencilZPass:THREE.ReplaceStencilOp}));'
+      +'stencilWrite:true,stencilRef:0,stencilFunc=THREE.NotEqualStencilFunc,'
+      +'stencilFail=THREE.ReplaceStencilOp,stencilZFail=THREE.ReplaceStencilOp,stencilZPass=THREE.ReplaceStencilOp}));'
       +'SCAP.renderOrder=2;SCAP.visible=false;scene.add(SCAP);\n'
       +(data.section.hatch
         ?'if(SEC.hatch){var HD=SEC.hatchDensity||16,HA=(SEC.hatchAngle==null?45:SEC.hatchAngle);'
@@ -4443,7 +4695,72 @@ const Exporter={
       +'if(SCAP.material.map){var rep=Math.max(1,Math.round(side/Math.max(.5,(SEC.hatchDensity||16)/8)));'
       +'SCAP.material.map.repeat.set(rep,rep);}}\n'
       ):'function applySec(t){}\n';
-    /* ---------- ★ v6.28.7: 运行时整体 ES5（含公转+螺旋） ---------- */
+    /* ---------- 💧 液体运行时代码（ES5） ---------- */
+    const lqHas=data.liquid&&data.liquid.on;
+    const lqCode=(
+      'var LQ=DATA.liquid||null;var LQON=!!(LQ&&LQ.on);\n'
+      +'var LQS=null,LQB=null,LQG=null,LQM=null,LQBM=null,LQH=null,LQV=null,LQN=0,LQPRE=[],LQBASE=null;\n'
+      +'if(LQON){LQN=LQ.res||44;var ln=LQN;\n'
+      +' LQG=new THREE.PlaneGeometry(1,1,ln-1,ln-1);LQG.rotateX(-Math.PI/2);\n'
+      +' LQH=new Float32Array(ln*ln);LQV=new Float32Array(ln*ln);\n'
+      +' LQG.setAttribute("color",new THREE.BufferAttribute(new Float32Array(ln*ln*3),3));\n'
+      +' LQM=new THREE.MeshStandardMaterial({color:0xffffff,transparent:true,opacity:LQ.opacity,roughness:.08,metalness:0,vertexColors:true,side:THREE.DoubleSide});\n'
+      +' LQS=new THREE.Mesh(LQG,LQM);LQS.renderOrder=10;scene.add(LQS);\n'
+      +' LQBM=new THREE.MeshPhysicalMaterial({color:LQ.color,transparent:true,opacity:LQ.opacity*.85,roughness:.15,metalness:0,depthWrite:false});\n'
+      +' LQB=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),LQBM);LQB.renderOrder=9;scene.add(LQB);\n'
+      +' LQBASE=new THREE.Color(LQ.color);}\n'
+      +'function lqBounds(){\n'
+      +' if(LQ.container>=0&&parts[LQ.container]){var p=parts[LQ.container].mesh;\n'
+      +'  p.updateWorldMatrix(true,false);var g=p.geometry;\n'
+      +'  if(!g.boundingBox)g.computeBoundingBox();\n'
+      +'  return g.boundingBox.clone().applyMatrix4(p.matrixWorld);}\n'
+      +' var b=LQ.box||{w:3,d:3,h:2.4};\n'
+      +' return new THREE.Box3(new THREE.Vector3(-b.w/2,0,-b.d/2),new THREE.Vector3(b.w/2,b.h,b.d/2));}\n'
+      +'function lqRad(p){var g=p.mesh.geometry;if(!g.boundingBox)g.computeBoundingBox();\n'
+      +' return Math.max(.05,Math.min(g.boundingBox.getSize(new THREE.Vector3()).length()*.5,.6));}\n'
+      +'function updateLiquid(dt){\n'
+      +' if(!LQON){if(LQS)LQS.visible=false;if(LQB)LQB.visible=false;return;}\n'
+      +' var bx=lqBounds();if(bx.isEmpty())return;\n'
+      +' var N=LQN;\n'
+      +' var sy=bx.min.y+(bx.max.y-bx.min.y)*Math.max(.02,Math.min(.98,LQ.level));\n'
+      +' var w=(bx.max.x-bx.min.x)*.985,d=(bx.max.z-bx.min.z)*.985;\n'
+      +' LQS.visible=true;LQB.visible=true;\n'
+      +' LQS.position.set((bx.min.x+bx.max.x)/2,sy,(bx.min.z+bx.max.z)/2);LQS.scale.set(w,1,d);\n'
+      +' LQB.position.set((bx.min.x+bx.max.x)/2,(bx.min.y+sy)/2,(bx.min.z+bx.max.z)/2);\n'
+      +' LQB.scale.set(Math.max(.01,w*.995),Math.max(.01,sy-bx.min.y),Math.max(.01,d*.995));\n'
+      +' var h=LQH,vv=LQV,sp=LQ.spread,damp=LQ.damp;\n'
+      +' for(var y=1;y<N-1;y++){var row=y*N;\n'
+      +'  for(var x=1;x<N-1;x++){var i=row+x;\n'
+      +'   vv[i]+=((h[i-1]+h[i+1]+h[i-N]+h[i+N])*.25-h[i])*sp;vv[i]*=damp;}}\n'
+      +' for(var i2=0;i2<N*N;i2++)h[i2]+=vv[i2];\n'
+      +' var vel=new THREE.Vector3();\n'
+      +' parts.forEach(function(p,pi){\n'
+      +'  var cur=p.mesh.position;var prev=LQPRE[pi];\n'
+      +'  if(prev)vel.copy(cur).sub(prev).divideScalar(Math.max(dt,1e-3));else vel.set(0,0,0);\n'
+      +'  LQPRE[pi]=cur.clone();\n'
+      +'  var speed=vel.length();if(speed<.06)return;\n'
+      +'  if(cur.x<bx.min.x||cur.x>bx.max.x||cur.z<bx.min.z||cur.z>bx.max.z)return;\n'
+      +'  var g=p.mesh.geometry;if(!g.boundingBox)g.computeBoundingBox();\n'
+      +'  var bb=g.boundingBox.clone().applyMatrix4(p.mesh.matrixWorld);\n'
+      +'  if(bb.max.y<sy&&speed<.6)return;\n'
+      +'  var gx=Math.floor(((cur.x-bx.min.x)/(bx.max.x-bx.min.x))*(N-1));\n'
+      +'  var gz=Math.floor(((cur.z-bx.min.z)/(bx.max.z-bx.min.z))*(N-1));\n'
+      +'  var R=Math.max(1,Math.round(Math.min(lqRad(p)*(N-1)/Math.max(w,d),N/4)));\n'
+      +'  var amp=Math.min(1.2,speed*.14)*LQ.stir;\n'
+      +'  for(var dy=-R;dy<=R;dy++)for(var dx=-R;dx<=R;dx++){\n'
+      +'   var xx=gx+dx,zz=gz+dy;\n'
+      +'   if(xx<1||zz<1||xx>=N-1||zz>=N-1)continue;\n'
+      +'   var fall=Math.exp(-(dx*dx+dy*dy)/Math.max(.5,R*R*.4));\n'
+      +'   vv[zz*N+xx]-=amp*fall;}});\n'
+      +' var pa=LQG.attributes.position,ca=LQG.attributes.color;\n'
+      +' for(var yy=0;yy<N;yy++)for(var xx2=0;xx2<N;xx2++){\n'
+      +'  var i3=yy*N+xx2;var hh=LQH[i3]*LQ.waveScale;var ah=Math.abs(hh);\n'
+      +'  pa.setXYZ(i3,xx2/(N-1)-.5,hh,yy/(N-1)-.5);\n'
+      +'  var foam=LQ.foam?Math.max(0,Math.min(1,(ah-.04)*5)):0;\n'
+      +'  ca.setXYZ(i3,LQBASE.r+(1-LQBASE.r)*foam,LQBASE.g+(1-LQBASE.g)*foam,LQBASE.b+(1-LQBASE.b)*foam);}\n'
+      +' pa.needsUpdate=true;ca.needsUpdate=true;LQG.computeVertexNormals();}\n'
+    );
+    /* ---------- ★ v6.28.9: 运行时整体 ES5（含相机up修复） ---------- */
     const RT=`
 var DATA=${safeJson};
 var ease={linear:function(t){return t},easeIn:function(t){return t*t*t},easeOut:function(t){return 1-Math.pow(1-t,3)},easeInOut:function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2},elastic:function(t){return t===0?0:t===1?1:Math.pow(2,-10*t)*Math.sin((t*10-.75)*(2*Math.PI/3))+1}};
@@ -4467,7 +4784,13 @@ function evalCam(keys,t){
  for(var i=0;i<keys.length-1;i++){var a=keys[i],b=keys[i+1];
   if(t>=a.t&&t<=b.t){var r=(t-a.t)/Math.max(1e-6,b.t-a.t);var e=ease[a.ease||"easeInOut"](r);var o={pos:{},target:{}};
    for(var k1 in a.pos)o.pos[k1]=a.pos[k1]+(b.pos[k1]-a.pos[k1])*e;
-   for(var k2 in a.target)o.target[k2]=a.target[k2]+(b.target[k2]-a.target[k2])*e;return o;}}
+   for(var k2 in a.target)o.target[k2]=a.target[k2]+(b.target[k2]-a.target[k2])*e;
+   if(a.up&&b.up){var ux2=a.up.x+(b.up.x-a.up.x)*e;
+    var uy2=a.up.y+(b.up.y-a.up.y)*e;
+    var uz2=a.up.z+(b.up.z-a.up.z)*e;
+    var L2=Math.sqrt(ux2*ux2+uy2*uy2+uz2*uz2)||1;
+    o.up={x:ux2/L2,y:uy2/L2,z:uz2/L2};}
+   return o;}}
  return keys[keys.length-1];}
 var scene=new THREE.Scene();
 ${bgIsGrad?'scene.background=null;':'scene.background=new THREE.Color("'+data.bg.v+'");'}
@@ -4514,6 +4837,7 @@ DATA.parts.forEach(function(p){CX+=p.home[0];CY+=p.home[1];CZ+=p.home[2];});
 CX/=DATA.parts.length;CY/=DATA.parts.length;CZ/=DATA.parts.length;
 ${ptCode}
 ${secCode}
+${lqCode}
 var bomLayer=document.getElementById("bomLayer");
 var tags=parts.map(function(p,i){var t=document.createElement("div");
  t.className="bomTag";bomLayer.appendChild(t);return t;});
@@ -4627,9 +4951,13 @@ function tick(){
   if(p.d.pivotFollow!==false){p.mesh.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(ax,ang));}});
  updateParticles(T);
  applySec(T);
+ updateLiquid(1/60);
  if(camAnim&&DATA.camKeys.length){var c=evalCam(DATA.camKeys,T);
   camera.position.set(c.pos.x,c.pos.y,c.pos.z);
-  tgt.set(c.target.x,c.target.y,c.target.z);camera.up.set(0,1,0);camera.lookAt(tgt);}
+  tgt.set(c.target.x,c.target.y,c.target.z);
+  if(c.up){camera.up.set(c.up.x,c.up.y,c.up.z);}
+  else{camera.up.set(0,1,0);}
+  camera.lookAt(tgt);}
  else{_tf.set(0,0,-1).applyQuaternion(OQ);
   camera.position.copy(tgt).addScaledVector(_tf,-dist);
   camera.quaternion.copy(OQ);}
@@ -4643,7 +4971,7 @@ function tick(){
 tick();
 addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 `;
-    /* ---------- ★ 导出前语法自检门 ---------- */
+    /* ---------- 导出前语法自检门 ---------- */
     try{ new Function(RT); }
     catch(e){
       console.error('导出语法自检失败:',e);
@@ -4704,7 +5032,8 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
       try{
         await writeToHandle(fh,blob);
         UI.toast('Web 交互版已导出 ✓（语法自检通过 · '+webSys.length+' 套粒子'
-          +(offline?' · 离线内嵌':' · CDN')+(secHas?' · 剖面':'')+(Spin.active()?' · 整体旋转':'')+'）→ 已保存到所选位置');
+          +(offline?' · 离线内嵌':' · CDN')+(secHas?' · 剖面':'')+(lqHas?' · 液体':'')
+          +(Spin.active()?' · 整体旋转':'')+'）→ 已保存到所选位置');
       }catch(e){ UI.toast('保存失败: '+e.message); }
     }else{
       fallbackDownload(blob,offline?'explode-interactive-offline.html':'explode-interactive.html');
@@ -4714,13 +5043,14 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
   },
   serialize(){
     return {
-      version:28.7, duration:State.duration, explodeAmount:State.explodeAmount,
+      version:28.9, duration:State.duration, explodeAmount:State.explodeAmount,
       explodeMode:State.explodeMode, mixRatio:State.mixRatio,
       assemblySpin:State.assemblySpin||{x:0,y:0,z:0},
       spinAngle:Spin.ang,
       viewMarks:State.viewMarks, matPresets:State.matPresets,
       camKeys:State.camKeys, bomKeys:State.bomKeys, bg:State.bg,
       section:State.section, sectionKeys:State.sectionKeys,
+      liquid:JSON.parse(JSON.stringify(Liquid.cfg)),
       particles:Particles.serialize(),
       parts:State.parts.map((p,i)=>({
         name:p.name, label:p.label||'',
@@ -4813,12 +5143,19 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
         capColor:'#e8a33d',hatch:true,ghost:false,viz:true,
         tilt:0,tilt2:0,hatchDensity:16,hatchAngle:45},d.section||{});
       State.sectionKeys=(d.sectionKeys||[]).map(k=>({...k}));
+      if(d.liquid){
+        Object.assign(Liquid.cfg,d.liquid);
+        Liquid.cfg.box={...(d.liquid.box||Liquid.cfg.box)};
+        if(Liquid.cfg.on&&!Liquid._built)Liquid.build();
+        Liquid.prev.clear();
+      }
       Section.rebuild();
       buildBOMTags(); UI.refresh(); sync();
       History.clear();
       State._initFull=captureInit();
       setDirty(false);
-      UI.toast('项目已加载 ✓（'+State.parts.length+' 零件 / '+Particles.systems.length+' 套粒子'+(State.section.on?' / 剖面开':'')+'）— 按 F 聚焦');
+      UI.toast('项目已加载 ✓（'+State.parts.length+' 零件 / '+Particles.systems.length+' 套粒子'
+        +(State.section.on?' / 剖面开':'')+(Liquid.cfg.on?' / 液体开':'')+'）— 按 F 聚焦');
     }catch(e){ console.error(e); UI.toast('项目加载失败: '+e.message); }
   }
 };
@@ -4844,7 +5181,16 @@ $('btnWave').onclick   =()=>UI.autoKeyframes('wave');
 $('btnSeq').onclick    =()=>UI.autoKeyframes('sequence');
 $('btnAsm').onclick    =()=>UI.autoKeyframes('assembly');
 $('btnAddKey').onclick =()=>UI.addKeyframe();
-$('btnCamKey').onclick =()=>UI.addCamKeyframe();
+/* ★ v6.28.9: 传入事件对象（支持 Shift 判断） */
+$('btnCamKey').onclick =(e)=>UI.addCamKeyframe(e);
+/* ★ v6.28.9: 清除全部相机关键帧 */
+$('btnCamClear').onclick=()=>{
+  if(!State.camKeys.length){UI.toast('没有相机关键帧');return;}
+  History.push('camClear');
+  State.camKeys=[];
+  UI.refresh();
+  UI.toast('已清除全部相机关键帧（播放时不再改变视角）');
+};
 $('btnDelKey').onclick =()=>UI.deleteKeyframe();
 $('btnVideo').onclick  =()=>Exporter.showVideoModal();
 $('btnWeb').onclick    =()=>Exporter.showWebModal();
@@ -5001,6 +5347,14 @@ $('asmSpinZero').onclick=()=>{
 /* ---- Web 导出弹窗 ---- */
 $('webStartBtn').onclick=()=>Exporter.exportWeb();
 $('webCancelBtn').onclick=()=>$('webModal').style.display='none';
+
+/* ---- 💧 液体面板 ---- */
+$('btnLiquid').onclick=()=>{Liquid.fill();$('liquidModal').style.display='flex';};
+$('lqClose').onclick=()=>$('liquidModal').style.display='none';
+['lqOn','lqContainer','lqLevel','lqColor','lqOp','lqWave','lqDamp','lqStir','lqFoam']
+  .forEach(id=>{ $(id).addEventListener('input',()=>Liquid.apply());
+                 $(id).addEventListener('change',()=>Liquid.apply()); });
+$('lqDemo').onclick=()=>{Liquid.stirDemo();$('liquidModal').style.display='none';};
 
 /* ---- 材质预设按钮 ---- */
 const bindMat=(id,key)=>$(id).onclick=()=>{
@@ -5224,7 +5578,7 @@ const posFromPanel=()=>{
   UI.setPartProp('pos',[+$('ppPX').value||0, +$('ppPY').value||0, +$('ppPZ').value||0]);
 };
 ['ppPX','ppPY','ppPZ'].forEach(id=>$(id).onchange=posFromPanel);
-/* ---- ★ v6.28.7: 绕零件公转 + 螺旋导程 ---- */
+/* ---- 绕零件公转 + 螺旋导程 ---- */
 const orbitFromPanel=()=>{
   History.pushOnce('ppOrbit');
   const p=curPart(); if(!p)return;
@@ -5332,7 +5686,6 @@ try{
     {t:D,  exp:1, pos:[0,.6,0],rot:[0,Math.PI*2,0], sc:[1,1,1],    op:1,  ease:'easeInOut'}
   ];
   State.parts[2].spin=[0,Math.PI/3,0];
-  /* ★ v6.28.7 演示: 控制器绕主体公转（活轴心·随爆炸跟随） */
   State.parts[7].pivot=1;
   State.parts[7].pivotSpeed=45;
   State.parts[7].pivotAxis='y';
@@ -5376,7 +5729,7 @@ try{
   },9000);
   document.getElementById('bootErr').style.display='none';
   window.__BOOTED=true;
-  UI.toast('v6.28.7 ✓ ◎绕零件公转+螺旋导程 — 演示:控制器绕主体公转·扳手拧螺栓配方见属性面板');
+  UI.toast('v6.28.9 ✓ 相机关键帧修复 — 📷点击=锁定当前视角 · Shift+点击=多帧运镜 · 📷✕=清空');
 }catch(err){
   console.error(err);
   alert('启动失败: '+err.message);
