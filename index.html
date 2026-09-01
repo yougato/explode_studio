@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>ExplodeStudio Pro v6.28.9 - 3D爆炸图动画工作站</title>
+<title>ExplodeStudio Pro v6.28.15 - 3D爆炸图动画工作站</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;user-select:none}
   body{font-family:"Segoe UI",sans-serif;background:#1a1d23;color:#d8dce4;overflow:hidden;height:100vh;display:flex;flex-direction:column}
@@ -34,6 +34,8 @@
   .part-item.selected{background:#4a7dff33;outline:1px solid #4a7dff}
   .part-item.dragover{background:#4a7dff55;outline:1px dashed #4a7dff}
   .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .grpBadge{color:#ffd24a;font-size:9px;cursor:pointer;background:#ffd24a1c;border:1px solid #ffd24a55;padding:0 4px;border-radius:3px;white-space:nowrap}
+  .grpBadge:hover{background:#ffd24a44}
   #propsPanel{border-top:1px solid #333;padding:8px 12px 12px;font-size:12px;display:none;max-height:62%;overflow-y:auto}
   #propsPanel .pp-title{color:#8ab4ff;margin-bottom:8px;font-weight:bold}
   #propsPanel label{display:block;margin:7px 0 3px;color:#9aa4b4}
@@ -67,6 +69,9 @@
   #hsPanel .hl{display:inline-block;width:30px;color:#9aa4b4}
   #hsPanel .hn{width:58px;padding:2px 4px;font-size:12px}
   #hsPanel input[type=range]{width:95px;vertical-align:middle;margin:0}
+  #navBtns{position:absolute;display:flex;gap:4px;z-index:8}
+  #navBtns button{width:26px;height:26px;background:#0009;border:1px solid #3d4654;color:#d8dce4;border-radius:5px;cursor:pointer;font-size:13px;line-height:1;padding:0}
+  #navBtns button:hover{background:#4a7dff;color:#fff}
   #tlHandle{height:5px;cursor:row-resize;background:#22262e;border-top:1px solid #333;flex-shrink:0}
   #tlHandle:hover,#tlHandle.active{background:#4a7dff}
   #timeline{height:235px;background:#22262e;border-top:1px solid #333;display:flex;flex-direction:column;flex-shrink:0;position:relative;min-height:42px}
@@ -107,6 +112,14 @@
   #curveCv{background:#1a1d23;border:1px solid #3d4654;border-radius:4px;display:block;margin-top:8px;cursor:crosshair}
   #bootErr{position:fixed;inset:0;background:#1a1d23;color:#fff;display:none;align-items:center;justify-content:center;z-index:999;text-align:center;padding:30px}
   ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#3d4654;border-radius:4px}
+  /* ★ v6.28.15 粒子系统升级 */
+  #ptModal .box{width:560px}
+  .ptSec{border-top:1px solid #333;margin-top:12px;padding-top:8px;font-size:11px;color:#8ab4ff;letter-spacing:1px}
+  .ptRow{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
+  .ptRow label{margin:0;font-size:11px;color:#9aa4b4;white-space:nowrap}
+  .ptRow input[type=number]{width:58px}
+  .ptRow input[type=range]{width:80px;vertical-align:middle}
+  .ptHide{display:none!important}
 </style>
 </head>
 <body>
@@ -130,13 +143,18 @@
       <button class="btn" id="btnCamClear" title="清除全部相机关键帧（播放时不再改变视角）">📷✕</button>
       <button class="btn" id="btnDelKey">✕ 删帧</button>
     </div>
+    <div class="grp"><span class="gl">组</span>
+      <button class="btn" id="btnGroup" title="将选中(≥2)的零件打组：点树上📦徽章/下拉可整组选中，打帧/Gizmo/爆炸按组进行">📦 打组</button>
+      <button class="btn" id="btnUngroup" title="解散包含选中零件的组">⬜ 解组</button>
+      <select id="grpQuick" style="width:auto" title="快速选择组（整组选中）"><option value="-1">组…</option></select>
+    </div>
     <div class="grp"><span class="gl">操作</span>
       <button class="btn" id="btnGizmoT" title="移动轴(G)">✥</button>
       <button class="btn" id="btnGizmoR" title="旋转轴(R)">⟳</button>
       <button class="btn" id="btnGizmoS" title="缩放轴(S)">⤢</button>
       <button class="btn" id="btnBoxSel" title="框选模式(B)">⬚</button>
       <button class="btn" id="btnCurve" title="曲线编辑器">📈</button>
-      <button class="btn" id="btnParticles" title="粒子系统">✨ 粒子</button>
+      <button class="btn" id="btnParticles" title="粒子系统（发射器+物理+生命周期，对标 3ds Max/Blender/Unity）">✨ 粒子</button>
       <button class="btn" id="btnSection" title="剖切动画（切割+实体剖面+关键帧+斜切）">▦ 剖面</button>
       <button class="btn" id="btnLiquid" title="液体模拟（波动·零件搅动·泡沫）">💧 液体</button>
     </div>
@@ -235,17 +253,19 @@
       </select>
     </div>
     <div class="grp"><span class="gl">项目</span>
+      <button class="btn primary" id="btnImport" title="导入 3D 模型（GLB/glTF/OBJ/STL/FBX/DAE/PLY/3DS/3MF），或直接拖入视口">📥 导入</button>
       <button class="btn" id="btnSave" title="保存项目（有未保存修改时显示 ● 并提醒）">💾 存</button>
       <button class="btn" id="btnLoad" title="打开项目（Shift+点击=导入材质预设库）">📂 开</button>
       <input type="file" id="projFile" accept=".espx,.json" style="display:none">
       <input type="file" id="matLibFile" accept=".matlib,.json" style="display:none">
+      <input type="file" id="impFilePicker" accept=".glb,.gltf,.obj,.stl,.fbx,.dae,.ply,.3ds,.3mf" style="display:none">
     </div>
   </div>
 </div>
 
 <div id="main">
   <div id="sidebar">
-    <h3>装配树（拖动排序 · Ctrl+点击多选 · 双击改名）</h3>
+    <h3>装配树（拖动排序 · Ctrl多选 · 双击改名 · 📦徽章=组）</h3>
     <div id="partTree"></div>
     <div id="propsPanel">
       <div class="pp-title">零件属性 <span id="ppIdx" style="color:#567;font-weight:normal"></span></div>
@@ -300,6 +320,11 @@
       <div class="sf-cross" style="top:50%;left:0;right:0;height:1px"></div>
       <div class="sf-label" id="sfLabel">1920×1080 · 16:9</div>
     </div>
+    <div id="navBtns">
+      <button id="navHome" title="主页视角（回到默认视角并居中装配体）">🏠</button>
+      <button id="navCCW" title="视图逆时针旋转 90°">⟲</button>
+      <button id="navCW" title="视图顺时针旋转 90°">⟳</button>
+    </div>
     <div id="hsPanel">
       <div class="hp-title"><b style="color:#4adfff">✨ 控制点 <span id="hsIdx">1</span></b>
         <button class="btn mini" id="hsOrderL" title="序号前移（粒子流向：序号小 → 大）">◀</button>
@@ -320,10 +345,8 @@
     </div>
     <div class="overlay" id="dropHint">左键旋转（无限越极·零抖动）
 中键翻滚 · 右键平移
-🔒 锁视图 · 📐 角度参数
-◎ 公转+螺旋（拧螺栓）
-💧 液体（搅拌涟漪）
-📷 相机帧(点击=锁定视角)
+✨ 粒子: 发射器+物理+生命周期
+📦 打组 · 🧊 魔方 · 🎬 MP4
 F 聚焦 · ? 唤回提示</div>
     <div class="overlay" id="playInfo">00:00.00 / 00:10.00 | 30fps</div>
     <div class="overlay" id="selInfo"></div>
@@ -361,12 +384,18 @@ F 聚焦 · ? 唤回提示</div>
 <div id="statusbar">
   <span id="stParts">零件: 0</span><span id="stKeys">关键帧: 0</span><span id="stCam">相机帧: 0</span><span id="stSel">选中: 0</span>
   <span id="stDirty" style="color:#b8860b;display:none">● 未保存</span>
-  <span>📷相机帧修复 · 📥导入选单位 · ◎公转/螺旋 · 💧液体 · 整体旋转(实时) · F聚焦</span>
+  <span>✨粒子发射器 · 📦打组 · 📥导入进度 · 🎬MP4帧精确 · 🧊魔方 · 💧液体</span>
 </div>
 
 <div id="exportModal" class="modal">
   <div class="box">
     <h2>导出视频（物体+阴影+BOM+粒子+剖面+液体）</h2>
+    <label>编码器
+      <select id="expEnc" style="width:100%;margin-top:4px">
+        <option value="auto" selected>H.264 · MP4（推荐：帧精确·高画质·硬编码）</option>
+        <option value="webm">VP9 · WebM（兼容回退：老浏览器/精修后期）</option>
+      </select>
+    </label>
     <label>分辨率
       <select id="expRes" style="width:100%;margin-top:4px">
         <option value="1280x720">720p</option>
@@ -375,7 +404,7 @@ F 聚焦 · ? 唤回提示</div>
       </select>
     </label>
     <label>帧率 <select id="expFps" style="width:100%;margin-top:4px"><option>24</option><option selected>30</option><option>60</option></select></label>
-    <label>画质 <input type="number" id="expQ" value="12" min="2" max="40" style="width:100%;margin-top:4px"></label>
+    <label>码率 <input type="number" id="expQ" value="16" min="2" max="80" style="width:100%;margin-top:4px"> Mbps（越高越清晰，1080p 建议 12~24）</label>
     <label>导出背景
       <select id="expBg" style="width:100%;margin-top:4px">
         <option value="current">使用当前背景</option>
@@ -390,6 +419,7 @@ F 聚焦 · ? 唤回提示</div>
     <div id="exportMsg" style="font-size:11px;color:#8ab4ff;margin-top:8px"></div>
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
       <button class="btn" id="expCancelBtn">关闭</button>
+      <button class="btn warn" id="expCancelExportBtn" style="display:none">✕ 取消导出</button>
       <button class="btn primary" id="expStartBtn">开始导出</button>
     </div>
   </div>
@@ -514,46 +544,91 @@ F 聚焦 · ? 唤回提示</div>
 
 <div id="ptModal" class="modal">
   <div class="box">
-    <h2>✨ 粒子系统</h2>
-    <div class="pp-row" style="align-items:center;margin-bottom:4px">
-      <div style="flex:2"><label style="margin:0">系统</label>
-        <select id="ptSys"></select></div>
-      <div style="flex:0;display:flex;gap:6px;align-items:flex-end;padding-top:16px">
-        <button class="btn" id="ptSysAdd" title="添加新粒子系统（选中零件时自动附着）">＋ 系统</button>
-        <button class="btn" id="ptSysDel" title="删除当前系统">－ 删除</button>
-      </div>
+    <h2>✨ 粒子系统 <span style="font-size:11px;color:#567">发射器 · 物理 · 生命周期（对标 Max/Blender/Unity）</span></h2>
+    <div class="ptRow"><label>系统</label><select id="ptSys" style="flex:1"></select>
+      <button class="btn mini" id="ptSysAdd" title="添加系统（选中零件时自动附着）">＋</button>
+      <button class="btn mini" id="ptSysDel" title="删除当前系统">－</button>
+      <label><input type="checkbox" id="ptSolid" checked> 实体</label></div>
+    <div class="ptRow"><label>模式</label>
+      <label><input type="radio" name="ptMode" value="path"> 路径流动</label>
+      <label><input type="radio" name="ptMode" value="emit" checked> 发射器+物理</label>
+      <span style="flex:1"></span><label>预设</label>
+      <select id="ptPreset" style="width:auto">
+        <option value="-1">选择预设…</option>
+        <option value="spark">⚡火花(线迹)</option><option value="fountain">⛲喷泉</option>
+        <option value="smoke">💨烟雾上升</option><option value="boom">💥爆炸(爆发)</option>
+        <option value="magic">✨魔法光尘</option><option value="ember">🔥余烬上浮</option>
+        <option value="rain">🌧雨(线迹)</option><option value="snow">❄雪(飘落)</option>
+        <option value="stream">🌌流光(路径)</option>
+      </select></div>
+
+    <div id="ptSecEmit">
+      <div class="ptSec">发射器 Emitter</div>
+      <div class="ptRow"><label>形状</label>
+        <select id="ptEmit" style="width:auto">
+          <option value="point">点</option><option value="sphere">球体</option>
+          <option value="circle">圆面</option><option value="box">盒子</option>
+        </select>
+        <label>尺寸</label><input type="number" id="ptEmSize" step="0.1" min="0" style="width:52px">m
+        <label>散射角</label><input type="number" id="ptSpread" step="5" min="0" max="180" style="width:52px">°
+        <span style="font-size:10px;color:#567">0=定向锥 180=全球</span></div>
+      <div class="ptRow"><label>方向</label>
+        <input type="number" id="ptDirX" step="0.1" placeholder="X" style="width:52px">
+        <input type="number" id="ptDirY" step="0.1" placeholder="Y" style="width:52px">
+        <input type="number" id="ptDirZ" step="0.1" placeholder="Z" style="width:52px">
+        <button class="btn mini" id="ptDirView" title="发射方向=当前相机朝向">👁视图</button>
+        <button class="btn mini" id="ptDirUp" title="向上发射">↑</button></div>
+      <div class="ptRow"><label>初速</label><input type="number" id="ptSpeed0" step="0.5" min="0">
+        <label>±变化</label><input type="number" id="ptSpeedVar" step="0.1" min="0" max="1" style="width:46px">
+        <label>速率</label><input type="number" id="ptRate" step="10" min="1">个/s
+        <label>或爆发</label><input type="number" id="ptBurst" step="50" min="0" placeholder="0">个</div>
+      <div class="ptRow"><label>生命</label><input type="number" id="ptLife" step="0.2" min="0.1">s
+        <label>±变化</label><input type="number" id="ptLifeVar" step="0.1" min="0" max="1" style="width:46px">
+        <label>发射中心附着</label><select id="ptAttach" style="width:auto;flex:1"></select></div>
+      <div class="ptSec">物理 Physics</div>
+      <div class="ptRow"><label>重力</label><input type="number" id="ptGrav" step="0.5" style="width:56px">
+        <span style="font-size:10px;color:#567">负=下落 正=上升</span>
+        <label>阻力</label><input type="number" id="ptDrag" step="0.1" min="0" style="width:52px">
+        <label>湍流</label><input type="number" id="ptTurb" step="0.1" min="0" style="width:52px">
+        <label>频率</label><input type="number" id="ptTurbF" step="0.5" min="0" style="width:52px"></div>
     </div>
-    <label>附着零件（粒子路径围绕该零件并跟随其移动/爆炸）</label>
-    <select id="ptAttach" style="width:100%;margin-top:4px"></select>
-    <label style="margin-top:10px"><input type="checkbox" id="ptSolid" checked> 实体粒子（能遮挡物体、也会被物体遮挡）</label>
-    <label>路径
-      <select id="ptPath" style="width:100%;margin-top:4px">
-        <option value="arc">弧线（跨越装配体上方）</option>
-        <option value="line">直线（穿过装配体）</option>
-        <option value="spiral">螺旋上升</option>
-        <option value="circle">环绕装配体</option>
-        <option value="custom">自定义（控制点可调数量/直径/扩散/颜色/顺序）</option>
-      </select>
-    </label>
-    <label>整体大小 <span id="ptScaleVal">1.0×</span></label>
-    <input type="range" id="ptScale" min="0.2" max="3" step="0.1" value="1" title="整套粒子路径以中心为基准放大/缩小">
-    <div class="pp-row">
-      <div><label>起始时间(s)</label><input type="number" id="ptT0" value="1" min="0" step="0.5"></div>
-      <div><label>结束时间(s)</label><input type="number" id="ptT1" value="8" min="0.5" step="0.5"></div>
+
+    <div id="ptSecPath" class="ptHide">
+      <div class="ptSec">路径流动 Path</div>
+      <div class="ptRow"><label>路径</label>
+        <select id="ptPath" style="flex:1">
+          <option value="arc">弧线</option><option value="line">直线</option><option value="spiral">螺旋上升</option>
+          <option value="circle">环绕装配体</option><option value="custom">自定义（双击白点调参数）</option>
+        </select>
+        <label>整体大小</label><input type="range" id="ptScale" min="0.2" max="3" step="0.1"><span id="ptScaleVal">1.0×</span></div>
+      <div class="ptRow"><label>流速</label><input type="range" id="ptSpd" min="0.2" max="3" step="0.1"><span id="ptSpdVal">1.0</span></div>
     </div>
-    <label>流速 <span id="ptSpdVal">1.0</span></label><input type="range" id="ptSpd" min="0.2" max="3" step="0.1" value="1">
-    <label>粒子整体透明度 <span id="ptGAVal">100%</span></label><input type="range" id="ptGA" min="10" max="100" step="5" value="100">
-    <label>颜色（预设路径用）</label><input type="color" id="ptColor" value="#4adfff" style="width:100%;height:28px">
-    <div class="pp-row" style="align-items:center;margin-top:12px">
-      <span style="font-size:12px">自定义控制点: <b id="ptHN" style="color:#4adfff">2</b></span>
-      <button class="btn" id="ptHAdd">＋ 添加</button>
-      <button class="btn" id="ptHDel">－ 删除</button>
-    </div>
-    <div style="font-size:11px;color:#677;margin-top:10px">选「自定义」后<b style="color:#fff">双击</b>白色控制点弹出参数面板——◀▶ 调序号（流向：序号小→大）、⇄ 反转流向。</div>
-    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+
+    <div class="ptSec">生命周期窗口 Timing</div>
+    <div class="ptRow"><label>起始</label><input type="number" id="ptT0" step="0.5" min="0">s
+      <label>结束</label><input type="number" id="ptT1" step="0.5" min="0.5">s
+      <span id="ptTotal" style="font-size:10px;color:#ffd24a"></span></div>
+
+    <div class="ptSec">外观 Appearance（出生→消亡）</div>
+    <div class="ptRow"><label>大小</label><input type="number" id="ptSzA" step="0.05" min="0.05">→
+      <input type="number" id="ptSzB" step="0.05" min="0.01">
+      <label>颜色</label><input type="color" id="ptColA">→<input type="color" id="ptColB">
+      <label>淡入</label><input type="number" id="ptFIn" step="0.05" min="0" max="1" style="width:46px">
+      <label>淡出</label><input type="number" id="ptFOut" step="0.05" min="0.05" max="1" style="width:46px"></div>
+    <div class="ptRow"><label>渲染</label>
+      <select id="ptRender" style="width:auto"><option value="point">● 点</option><option value="streak">— 线迹(拖尾)</option></select>
+      <label>拖尾长</label><input type="number" id="ptStreak" step="0.02" min="0.02" style="width:52px">s
+      <label>混合</label><select id="ptBlend" style="width:auto"><option value="add">加色发光</option><option value="normal">普通</option></select>
+      <label>整体透明</label><input type="range" id="ptGA" min="10" max="100" step="5"><span id="ptGAVal">100%</span></div>
+
+    <div class="ptSec">自定义控制点（仅路径·自定义）</div>
+    <div class="ptRow"><span style="font-size:12px">控制点: <b id="ptHN" style="color:#4adfff">2</b></span>
+      <button class="btn mini" id="ptHAdd">＋</button><button class="btn mini" id="ptHDel">－</button>
+      <span style="flex:1"></span>
       <button class="btn" id="ptOff">关闭此系统</button>
-      <button class="btn primary" id="ptOk">应用并预览</button>
-    </div>
+      <button class="btn primary" id="ptOk">应用并预览</button></div>
+    <div style="font-size:10px;color:#677;margin-top:8px;line-height:1.6">
+      💡 先选预设一键秒开再微调。发射模式为确定性求值：播放 / ⬇MP4 导出逐帧一致。粒子池上限 3000：<span id="ptCap">-</span></div>
   </div>
 </div>
 
@@ -641,7 +716,7 @@ F 聚焦 · ? 唤回提示</div>
 <div id="impModal" class="modal">
   <div class="box">
     <h2>📥 导入模型 — 选择单位</h2>
-    <div style="font-size:11px;color:#677;margin-bottom:8px">OBJ/STL 等格式不带单位信息；按导出软件的原始单位选择（已自动推荐），程序按「米」重建场景</div>
+    <div style="font-size:11px;color:#677;margin-bottom:8px">支持 GLB/glTF/OBJ/STL/FBX/DAE/PLY/3DS/3MF · OBJ/STL 等不带单位信息，按导出软件原始单位选择（已自动推荐），程序按「米」重建场景</div>
     <div style="font-size:13px">文件: <b id="impFile" style="color:#8ab4ff"></b></div>
     <div style="font-size:12px;color:#9aa4b4;margin-top:4px">原始包围盒: <span id="impRaw"></span></div>
     <div style="font-size:12px;color:#9aa4b4">统计: <span id="impStats"></span></div>
@@ -661,6 +736,12 @@ F 聚焦 · ? 唤回提示</div>
     <div id="impStrayRow" style="display:none;margin-top:8px;font-size:12px;color:#ffb340">
       <span id="impStrayTxt"></span></div>
     <label style="margin-top:10px"><input type="checkbox" id="impClean" checked> 清理游离几何（剔除远离主体 &gt;8× 主体半径的杂散三角面）</label>
+    <div id="impLoadProgress" style="display:none;margin-top:12px">
+      <div style="font-size:11px;color:#8ab4ff" id="impLoadMsg">准备读取…</div>
+      <div style="height:8px;background:#1a1d23;border-radius:4px;overflow:hidden;margin-top:5px">
+        <div id="impLoadBar" style="height:100%;background:#4a7dff;width:0%;transition:width .15s"></div>
+      </div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
       <button class="btn" id="impCancel">取消</button>
       <button class="btn primary" id="impOk">导入</button>
@@ -775,6 +856,7 @@ const State = {
   assemblySpin:{x:0,y:0,z:0},
   viewLock: false,
   viewMarks: [],
+  groups: [],
   matPresets: [],
   matAnim: true,
   showAngles: true,
@@ -786,6 +868,7 @@ const State = {
   gizmoMode: null, gizmoDragging: false,
   boxMode: false,
   sectionSel: false,
+  exportCancel: false,
   bg: {type:'solid', v:'#22262e'},
   section:{on:false,axis:'y',pos:.5,flip:false,mode:'global',
            capColor:'#e8a33d',hatch:true,ghost:false,viz:true,
@@ -841,6 +924,7 @@ const History={
       camKeys:State.camKeys, bomKeys:State.bomKeys,
       sel:[...State.sel],
       matPresets:State.matPresets,
+      groups:State.groups.map(g=>({name:g.name,parts:[...g.parts]})),
       assemblySpin:State.assemblySpin,
       section:State.section, sectionKeys:State.sectionKeys,
       liquid:JSON.parse(JSON.stringify(Liquid.cfg)),
@@ -888,6 +972,7 @@ const History={
     try{
       const d=JSON.parse(json);
       if(Array.isArray(d.matPresets)){State.matPresets=d.matPresets;MatEdit.rebuildLib();}
+      State.groups=(d.groups||[]).map(g=>({name:g.name||'组',parts:(g.parts||[]).filter(i=>i<State.parts.length)}));
       State.duration=d.duration; State.explodeAmount=d.explodeAmount; State.bg=d.bg;
       State.camKeys=d.camKeys; State.bomKeys=d.bomKeys; State.sel=d.sel||[];
       if(d.assemblySpin){ State.assemblySpin=d.assemblySpin; syncSpinUI(); }
@@ -962,7 +1047,6 @@ function evalProps(keys,t){
   return cloneP(last);
 }
 function cloneP(k){ return {exp:k.exp,pos:[...k.pos],rot:[...k.rot],sc:[...scOf(k)],op:k.op}; }
-/* ★ v6.28.9: evalCam 插值 up 向量（保持翻滚连续过渡） */
 function evalCam(keys,t){
   if(!keys.length) return null;
   if(t<=keys[0].t) return keys[0];
@@ -1261,53 +1345,66 @@ function focusView(selOnly){
   UI.toast('⦿ 已聚焦'+((selOnly&&State.sel.length)?'选中物体':'全部物体')+'到视图中心');
 }
 
-/* ==================== Blender 导航器 ==================== */
+/* ==================== 🧊 ViewCube 魔方导航器（3ds Max 风格） ==================== */
 const Gizmo={
-  size:92, right:10, top:58,
-  scene:null, cam:null, balls:[],
-  hover:null, drag:null, downBall:null,
+  size:110, right:10, top:58,
+  scene:null, cam:null,
+  cube:null, edgeLines:null, hotspots:[],
+  hovered:null, drag:null, downSpot:null, downNormal:null,
   _ray:new THREE.Raycaster(),
+
   init(){
     this.scene=new THREE.Scene();
     this.cam=new THREE.PerspectiveCamera(38,1,.1,30);
-    const back=new THREE.Mesh(new THREE.SphereGeometry(2.7,32,16),
-      new THREE.MeshBasicMaterial({color:0x14171d,transparent:true,opacity:.88,side:THREE.BackSide,depthWrite:false}));
-    this.scene.add(back);
-    const mkBall=(dir,color,axis)=>{
-      const m=new THREE.Mesh(new THREE.SphereGeometry(.44,24,16),
-        new THREE.MeshBasicMaterial({color}));
-      m.position.copy(dir).multiplyScalar(1.6);
-      m.userData={axis};
-      this.scene.add(m); this.balls.push(m);
-    };
-    mkBall(new THREE.Vector3(1,0,0),0xff5a6e,'+X');
-    mkBall(new THREE.Vector3(-1,0,0),0x7a2c38,'-X');
-    mkBall(new THREE.Vector3(0,1,0),0x7ac74f,'+Y');
-    mkBall(new THREE.Vector3(0,-1,0),0x2f5a24,'-Y');
-    mkBall(new THREE.Vector3(0,0,1),0x4a7dff,'+Z');
-    mkBall(new THREE.Vector3(0,0,-1),0x24408f,'-Z');
-    const mkLine=(dir,color)=>{
-      const g=new THREE.BufferGeometry().setFromPoints(
-        [new THREE.Vector3(),dir.clone().multiplyScalar(1.15)]);
-      this.scene.add(new THREE.Line(g,new THREE.LineBasicMaterial({color})));
-    };
-    mkLine(new THREE.Vector3(1,0,0),0xff5a6e);
-    mkLine(new THREE.Vector3(0,1,0),0x7ac74f);
-    mkLine(new THREE.Vector3(0,0,1),0x4a7dff);
-    const mkLabel=(txt,color,dir)=>{
-      const cv=document.createElement('canvas'); cv.width=cv.height=64;
+    const mkFace=(txt)=>{
+      const cv=document.createElement('canvas'); cv.width=cv.height=128;
       const g=cv.getContext('2d');
-      g.font='bold 42px sans-serif'; g.textAlign='center'; g.textBaseline='middle';
-      g.fillStyle=color; g.fillText(txt,32,35);
-      const sp=new THREE.Sprite(new THREE.SpriteMaterial({
-        map:new THREE.CanvasTexture(cv),depthTest:false,transparent:true}));
-      sp.scale.set(.6,.6,.6);
-      sp.position.copy(dir).multiplyScalar(2.15);
-      this.scene.add(sp);
+      const grd=g.createLinearGradient(0,0,0,128);
+      grd.addColorStop(0,'#6b95cc'); grd.addColorStop(1,'#43669e');
+      g.fillStyle=grd; g.fillRect(0,0,128,128);
+      g.strokeStyle='rgba(255,255,255,.5)'; g.lineWidth=5; g.strokeRect(5,5,118,118);
+      g.fillStyle='#fff'; g.font='bold 46px sans-serif';
+      g.textAlign='center'; g.textBaseline='middle';
+      g.fillText(txt,64,66);
+      const t=new THREE.CanvasTexture(cv); t.colorSpace=THREE.SRGBColorSpace;
+      return new THREE.MeshBasicMaterial({map:t,transparent:true});
     };
-    mkLabel('X','#ff8a97',new THREE.Vector3(1,0,0));
-    mkLabel('Y','#9fe07f',new THREE.Vector3(0,1,0));
-    mkLabel('Z','#8ab4ff',new THREE.Vector3(0,0,1));
+    this.cube=new THREE.Mesh(new THREE.BoxGeometry(1.3,1.3,1.3),[
+      mkFace('右'),mkFace('左'),mkFace('顶'),mkFace('底'),mkFace('前'),mkFace('后')]);
+    this.scene.add(this.cube);
+    this.edgeLines=new THREE.LineSegments(
+      new THREE.EdgesGeometry(this.cube.geometry),
+      new THREE.LineBasicMaterial({color:0x1a2230}));
+    this.scene.add(this.edgeLines);
+    const H=0.65;
+    const mkSpot=(x,y,z,geo)=>{
+      const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({
+        color:0x8ab6e8,transparent:true,opacity:0.15,depthWrite:false}));
+      m.position.set(x,y,z);
+      m.userData.dir=new THREE.Vector3(x,y,z).normalize();
+      this.scene.add(m); this.hotspots.push(m);
+    };
+    for(const sx of[-1,1])for(const sy of[-1,1])for(const sz of[-1,1])
+      mkSpot(sx*H,sy*H,sz*H,new THREE.BoxGeometry(.18,.18,.18));
+    for(const sx of[-1,1])for(const sy of[-1,1]) mkSpot(sx*H,sy*H,0,new THREE.BoxGeometry(.13,.13,.32));
+    for(const sx of[-1,1])for(const sz of[-1,1]) mkSpot(sx*H,0,sz*H,new THREE.BoxGeometry(.13,.32,.13));
+    for(const sy of[-1,1])for(const sz of[-1,1]) mkSpot(0,sy*H,sz*H,new THREE.BoxGeometry(.32,.13,.13));
+    const nb=$('navBtns');
+    nb.style.right=this.right+'px';
+    nb.style.top=(this.top+this.size+6)+'px';
+    $('navHome').onclick=()=>{
+      if(State.viewLock){UI.toast('🔒 视图已锁定 — 先点「🔒 视图」解锁');return;}
+      Orbit.resetView();
+      UI.toast('🏠 已回到主页视角');
+    };
+    const rotView=(dir)=>{
+      if(State.viewLock){UI.toast('🔒 视图已锁定 — 先解锁');return;}
+      const a=Orbit.getAngles();
+      Orbit.goTo({theta:a.theta+dir*Math.PI/2,phi:a.phi,roll:a.roll,
+                  dist:Orbit.dist,target:Orbit.target.toArray()},450);
+    };
+    $('navCCW').onclick=()=>rotView(1);
+    $('navCW').onclick =()=>rotView(-1);
     addEventListener('pointerdown',e=>{
       if(this.begin(e)){ e.stopPropagation(); e.preventDefault(); }
     },true);
@@ -1319,6 +1416,21 @@ const Gizmo={
       if(this.end(e)) e.stopPropagation();
     },true);
   },
+
+  dirName(d){
+    let s='';
+    s+=d.x>.5?'右':d.x<-.5?'左':'';
+    s+=d.z>.5?'前':d.z<-.5?'后':'';
+    s+=d.y>.5?'顶':d.y<-.5?'底':'';
+    return s;
+  },
+  goToDir(d){
+    if(State.viewLock){UI.toast('🔒 视图已锁定 — 先解锁');return;}
+    const phi=THREE.MathUtils.clamp(Math.acos(THREE.MathUtils.clamp(d.y,-1,1)),0.02,Math.PI-0.02);
+    const theta=Math.atan2(d.x,d.z);
+    Orbit.goTo({theta,phi,roll:0,dist:Orbit.dist,target:Orbit.target.toArray()},450);
+  },
+
   syncCam(){
     this.cam.position.set(0,0,4.6).applyQuaternion(camera.quaternion);
     this.cam.quaternion.copy(camera.quaternion);
@@ -1338,18 +1450,20 @@ const Gizmo={
   pick(e){
     if(!this.inRect(e)) return null;
     const r=renderer.domElement.getBoundingClientRect();
-    const x=e.clientX-r.left, y=e.clientY-r.top;
     const g=this.rect();
+    const x=e.clientX-r.left, y=e.clientY-r.top;
     this.syncCam();
     this._ray.setFromCamera({x:(x-g.x)/g.s*2-1, y:-((y-g.y)/g.s*2-1)},this.cam);
-    const hit=this._ray.intersectObjects(this.balls,false)[0];
-    return hit?hit.object:null;
+    const hits=this._ray.intersectObjects([this.cube,...this.hotspots],false);
+    return hits[0]||null;
   },
   begin(e){
     if(!this.inRect(e)) return false;
     if(State.viewLock) return false;
+    const hit=this.pick(e);
     this.drag={x:e.clientX,y:e.clientY,moved:0};
-    this.downBall=this.pick(e);
+    this.downSpot=hit&&hit.object!==this.cube?hit.object:null;
+    this.downNormal=hit&&hit.object===this.cube?hit.face.normal.clone():null;
     Orbit.tween=null;
     return true;
   },
@@ -1362,34 +1476,46 @@ const Gizmo={
   end(e){
     if(!this.drag) return false;
     const wasClick=this.drag.moved<5;
-    const b=this.downBall;
-    this.drag=null; this.downBall=null;
-    if(wasClick&&b){
-      const axis=b.userData.axis;
-      const map={'+X':'right','-X':'left','+Y':'top','-Y':'bottom','+Z':'front','-Z':'back'};
-      const name=map[axis];
-      if(name){
-        Orbit.goTo({theta:VP.angles[name].theta,phi:VP.angles[name].phi,roll:0,
-                    dist:Orbit.dist,target:Orbit.target.toArray()},400);
-        UI.toast('🧭 导航器 → '+VP.names[name]+'视图');
+    this.drag=null;
+    if(wasClick){
+      if(this.downSpot){
+        this.goToDir(this.downSpot.userData.dir);
+        UI.toast('🧭 魔方 → '+this.dirName(this.downSpot.userData.dir)+' 视角');
+      }else if(this.downNormal){
+        this.goToDir(this.downNormal);
+        UI.toast('🧭 魔方 → '+this.dirName(this.downNormal)+'视图');
       }
     }
+    this.downSpot=null; this.downNormal=null;
     return true;
   },
   onHover(e){
-    const b=this.pick(e);
-    if(b!==this.hover){
-      this.balls.forEach(m=>m.scale.setScalar(1));
-      if(b) b.scale.setScalar(1.4);
-      this.hover=b;
+    const hit=this.pick(e);
+    const spot=hit&&hit.object!==this.cube?hit.object:null;
+    if(spot!==this.hovered){
+      this.hotspots.forEach(m=>{ m.material.opacity=.15; m.scale.setScalar(1); m.material.color.setHex(0x8ab6e8); });
+      if(spot){
+        spot.material.opacity=.95;
+        spot.material.color.setHex(0xffb340);
+        spot.scale.setScalar(1.6);
+      }
+      this.hovered=spot;
     }
-    renderer.domElement.style.cursor=b?'pointer':(this.inRect(e)?'grab':'');
+    renderer.domElement.style.cursor=hit?'pointer':(this.inRect(e)?'grab':'');
   },
   render(){
     if(State.recording) return;
+    const nb=$('navBtns');
+    if(nb) nb.style.display=State.recording?'none':'flex';
     const w=viewport.clientWidth,h=viewport.clientHeight;
     if(!w||!h) return;
     this.syncCam();
+    const d=this.cam.position.clone().normalize();
+    let idx=-1,best=-1;
+    [[d.x,0],[d.x,1],[d.y,2],[-d.y,3],[d.z,4],[-d.z,5]].forEach(([v,i])=>{
+      if(v>best){best=v;idx=i;}
+    });
+    this.cube.material.forEach((m,i)=>m.color.setHex(i===idx?0xffffff:0xc3ccdb));
     const s=this.size, x=w-this.right-s, y=h-this.top-s;
     if(State.bg.type==='solid') renderer.setClearColor(new THREE.Color(State.bg.v),1);
     else renderer.setClearColor(0x000000,0);
@@ -1404,7 +1530,6 @@ const Gizmo={
 };
 
 /* ==================== 视角书签 ==================== */
-/* ★ v6.28.9: 由球坐标(含roll)计算世界 up 向量 */
 function markUpVector(m){
   const sp=Math.sin(m.phi),cp=Math.cos(m.phi);
   const f=new THREE.Vector3(-Math.sin(m.theta)*sp,-cp,-Math.cos(m.theta)*sp);
@@ -1458,7 +1583,6 @@ const Views={
       x:+(m.target[0]+Math.sin(m.theta)*sp*m.dist).toFixed(4),
       y:+(m.target[1]+cp*m.dist).toFixed(4),
       z:+(m.target[2]+Math.cos(m.theta)*sp*m.dist).toFixed(4)};
-    /* ★ v6.28.9: 同时存 up（含 roll），回放保留侧倾 */
     const upW=markUpVector(m);
     State.camKeys=State.camKeys.filter(k=>Math.abs(k.t-State.time)>.02);
     State.camKeys.push({t:State.time,pos,
@@ -1468,6 +1592,55 @@ const Views={
     State.camKeys.sort((a,b)=>a.t-b.t);
     UI.refresh();
     UI.toast('📷 已把书签「'+m.name+'」插入为相机关键帧 @ '+State.time.toFixed(2)+'s');
+  }
+};
+
+/* ==================== 📦 零件组 ==================== */
+const Groups={
+  of(i){ return State.groups.find(g=>g.parts.includes(i))||null; },
+  create(){
+    const sel=[...new Set(State.sel)].filter(i=>State.parts[i]);
+    if(sel.length<2){UI.toast('请先 Ctrl+点击 或 框选(B) 选中 2 个以上零件再打组');return;}
+    History.push('group');
+    State.groups.forEach(g=>{ g.parts=g.parts.filter(i=>!sel.includes(i)); });
+    State.groups=State.groups.filter(g=>g.parts.length>=2);
+    sel.sort((a,b)=>a-b);
+    State.groups.push({name:'组 '+(State.groups.length+1),parts:sel});
+    setDirty(true); UI.refresh();
+    UI.toast('📦 已创建「'+State.groups[State.groups.length-1].name+'」（'+sel.length+' 件）— 点树中徽章或下拉选整组；◆打帧/G/R/S 按组进行');
+  },
+  dissolve(){
+    const sel=new Set(State.sel);
+    const hit=State.groups.filter(g=>g.parts.some(i=>sel.has(i)));
+    if(!hit.length){UI.toast('选中的零件没有分组');return;}
+    History.push('ungroup');
+    State.groups=State.groups.filter(g=>!hit.includes(g));
+    setDirty(true); UI.refresh();
+    UI.toast('⬜ 已解散 '+hit.length+' 个组');
+  },
+  select(g){
+    State.sel=[...g.parts];
+    State.sectionSel=false;
+    Particles.systems.forEach(s=>{s.selHandle=-1;s.panelOpen=false;});
+    UI.refresh(); UI.showSel();
+    UI.toast('📦 已选中组「'+g.name+'」（'+g.parts.length+' 件）— ◆打帧 / G·R·S / 爆炸滑杆 按组进行');
+  },
+  rename(g){
+    const n=prompt('组名称:',g.name);
+    if(n){History.push('grpRename');g.name=n;setDirty(true);UI.refresh();}
+  },
+  remap(refs){
+    State.groups.forEach(g=>{ g.parts=g.parts.map(i=>State.parts.indexOf(refs[i])).filter(i=>i>=0); });
+    State.groups=State.groups.filter(g=>g.parts.length>=2);
+  },
+  rebuildQuick(){
+    const sel=$('grpQuick'); if(!sel)return;
+    sel.innerHTML='<option value="-1">组…</option>';
+    State.groups.forEach((g,i)=>{
+      const o=document.createElement('option');
+      o.value=i; o.textContent='📦 '+g.name+' ('+g.parts.length+'件)';
+      sel.appendChild(o);
+    });
   }
 };
 
@@ -1510,14 +1683,64 @@ const SafeFrame={
   }
 };
 
-/* ==================== 多粒子系统管理器 ==================== */
+/* ==================== 多粒子系统管理器（★ v6.28.15 发射器+物理+生命周期） ==================== */
 const PMAX=3000;
 const PT_DEFAULTS={
-  t0:1,t1:8,speed:1,gAlpha:1,attach:-1,scale:1,solid:true,
-  countStart:50,countEnd:800,
-  sizeStart:.5,sizeEnd:.1,
-  spreadStart:.35,spreadEnd:.05,
-  color:'#4adfff',pathType:'arc'
+  mode:'emit',
+  pathType:'arc', t0:1, t1:8, speed:1, attach:-1, scale:1,
+  countStart:50, countEnd:800, sizeStart:.5, sizeEnd:.1,
+  spreadStart:.35, spreadEnd:.05,
+  emitter:'point', emSize:.5, dirX:0, dirY:1, dirZ:0, spreadAngle:30,
+  speed0:3, speedVar:.3, rate:60, burst:0, lifetime:2, lifeVar:.3,
+  gravity:-4, drag:.2, turb:0, turbFreq:1.5,
+  color:'#4adfff', colorStart:'#4adfff', colorEnd:'#4adfff',
+  fadeIn:.15, fadeOut:.35, blend:'add', render:'point', streakLen:.06,
+  gAlpha:1, solid:true
+};
+const PT_PRESETS={
+  spark:{mode:'emit',emitter:'point',emSize:.1,dirX:0,dirY:1,dirZ:0,spreadAngle:25,
+    speed0:5,speedVar:.5,rate:120,burst:0,lifetime:.8,lifeVar:.35,
+    gravity:-6,drag:.1,turb:.3,turbFreq:3,
+    sizeStart:.35,sizeEnd:.05,colorStart:'#ffd27a',colorEnd:'#ff5a2a',
+    fadeIn:.02,fadeOut:.4,blend:'add',render:'streak',streakLen:.05},
+  fountain:{mode:'emit',emitter:'circle',emSize:.5,dirX:0,dirY:1,dirZ:0,spreadAngle:12,
+    speed0:6,speedVar:.15,rate:80,burst:0,lifetime:1.6,lifeVar:.2,
+    gravity:-9,drag:.05,turb:0,turbFreq:1,
+    sizeStart:.4,sizeEnd:.15,colorStart:'#7fd8ff',colorEnd:'#4a7dff',
+    fadeIn:.05,fadeOut:.35,blend:'add',render:'point'},
+  smoke:{mode:'emit',emitter:'circle',emSize:.4,dirX:0,dirY:1,dirZ:0,spreadAngle:20,
+    speed0:.8,speedVar:.3,rate:25,burst:0,lifetime:3,lifeVar:.4,
+    gravity:.6,drag:2,turb:.5,turbFreq:1.2,
+    sizeStart:.3,sizeEnd:1.3,colorStart:'#8892a0',colorEnd:'#2a2f3a',
+    fadeIn:.15,fadeOut:.5,blend:'normal',render:'point'},
+  boom:{mode:'emit',emitter:'point',emSize:.1,dirX:0,dirY:1,dirZ:0,spreadAngle:180,
+    speed0:6,speedVar:.6,rate:0,burst:400,lifetime:1.2,lifeVar:.4,
+    gravity:-3,drag:.4,turb:.4,turbFreq:2,
+    sizeStart:.5,sizeEnd:.08,colorStart:'#fff1c0',colorEnd:'#ff6a2a',
+    fadeIn:.01,fadeOut:.45,blend:'add',render:'streak',streakLen:.06},
+  magic:{mode:'emit',emitter:'sphere',emSize:1.5,dirX:0,dirY:.3,dirZ:0,spreadAngle:180,
+    speed0:.6,speedVar:.5,rate:60,burst:0,lifetime:3,lifeVar:.5,
+    gravity:0,drag:.3,turb:.8,turbFreq:2.5,
+    sizeStart:.2,sizeEnd:.02,colorStart:'#c07aff',colorEnd:'#4adfff',
+    fadeIn:.1,fadeOut:.5,blend:'add',render:'point'},
+  ember:{mode:'emit',emitter:'point',emSize:.6,dirX:0,dirY:1,dirZ:0,spreadAngle:35,
+    speed0:.8,speedVar:.5,rate:30,burst:0,lifetime:3.5,lifeVar:.6,
+    gravity:.8,drag:.6,turb:.5,turbFreq:1.8,
+    sizeStart:.22,sizeEnd:.03,colorStart:'#ffc46a',colorEnd:'#ff3a1a',
+    fadeIn:.1,fadeOut:.5,blend:'add',render:'point'},
+  rain:{mode:'emit',emitter:'box',emSize:4,dirX:0,dirY:-1,dirZ:0,spreadAngle:3,
+    speed0:14,speedVar:.05,rate:200,burst:0,lifetime:1.4,lifeVar:.1,
+    gravity:0,drag:0,turb:0,turbFreq:1,
+    sizeStart:.12,sizeEnd:.12,colorStart:'#9fc8ff',colorEnd:'#9fc8ff',
+    fadeIn:.05,fadeOut:.05,blend:'normal',render:'streak',streakLen:.08},
+  snow:{mode:'emit',emitter:'box',emSize:4,dirX:0,dirY:-1,dirZ:0,spreadAngle:5,
+    speed0:1.5,speedVar:.3,rate:80,burst:0,lifetime:4,lifeVar:.4,
+    gravity:0,drag:0,turb:.8,turbFreq:1.2,
+    sizeStart:.16,sizeEnd:.16,colorStart:'#ffffff',colorEnd:'#cfe4ff',
+    fadeIn:.05,fadeOut:.4,blend:'normal',render:'point'},
+  stream:{mode:'path',pathType:'arc',speed:1,scale:1,
+    sizeStart:.5,sizeEnd:.1,colorStart:'#4adfff',colorEnd:'#ffb340',
+    countStart:50,countEnd:800,blend:'add',render:'point'}
 };
 const Particles={
   systems:[], selSys:0,
@@ -1529,7 +1752,10 @@ const Particles={
     const s={
       cfg:Object.assign({},PT_DEFAULTS,cfg||{}),
       on:true, selHandle:-1, panelOpen:false, handles:[], handleGroup:null, curve:null, _lastC:null,
-      pos:null,aSize:null,aAlpha:null,aColor:null,seeds:null,dchk:null,jit:null,geo:null,mat:null,points:null
+      pos:null,aSize:null,aAlpha:null,aColor:null,seeds:null,dchk:null,jit:null,
+      geo:null,mat:null,points:null,
+      lines:null,lgeo:null,lpos:null,lcol:null,lalp:null,lmat:null,
+      _eN:0,_eMaxLife:0,_birth:null,_life:null,_p0:null,_v0:null,_ph:null
     };
     this.initSys(s);
     this.systems.push(s);
@@ -1539,6 +1765,7 @@ const Particles={
   removeSystem(i){
     const s=this.systems[i]; if(!s)return;
     if(s.points){scene.remove(s.points); s.geo.dispose(); s.mat.dispose();}
+    if(s.lines){scene.remove(s.lines); s.lgeo.dispose(); s.lmat.dispose();}
     if(s.handleGroup) scene.remove(s.handleGroup);
     this.systems.splice(i,1);
     if(this.selSys>=this.systems.length) this.selSys=this.systems.length-1;
@@ -1546,7 +1773,7 @@ const Particles={
   },
 
   initSys(s){
-    if(s.points) return;
+    if(s.points){ this._ensureLines(s); this._applyBlend(s); return; }
     s.geo=new THREE.BufferGeometry();
     s.pos=new Float32Array(PMAX*3);
     s.aSize=new Float32Array(PMAX);
@@ -1558,8 +1785,6 @@ const Particles={
     s.geo.setAttribute('aColor',new THREE.BufferAttribute(s.aColor,3));
     s.mat=new THREE.ShaderMaterial({
       transparent:true,
-      depthWrite:!!(s.cfg.solid??true),
-      uniforms:{},
       vertexShader:
         'attribute float aSize;attribute float aAlpha;attribute vec3 aColor;\n'+
         'varying float vA;varying vec3 vC;\n'+
@@ -1585,8 +1810,77 @@ const Particles={
       s.jit[i*3+1]=Math.sin(ph)*Math.sin(th)*r;
       s.jit[i*3+2]=Math.cos(ph)*r;
     }
+    this._ensureLines(s);
+    this._applyBlend(s);
     this.buildHandles(s);
     this.buildCurve(s);
+    this.rebuildEmit(s);
+  },
+  _ensureLines(s){
+    if(s.lines) return;
+    s.lgeo=new THREE.BufferGeometry();
+    s.lpos=new Float32Array(PMAX*2*3);
+    s.lcol=new Float32Array(PMAX*2*3);
+    s.lalp=new Float32Array(PMAX*2);
+    s.lgeo.setAttribute('position',new THREE.BufferAttribute(s.lpos,3));
+    s.lgeo.setAttribute('aColor',new THREE.BufferAttribute(s.lcol,3));
+    s.lgeo.setAttribute('aAlpha',new THREE.BufferAttribute(s.lalp,1));
+    s.lmat=new THREE.ShaderMaterial({transparent:true,
+      vertexShader:'attribute float aAlpha;attribute vec3 aColor;'+
+        'varying float vA;varying vec3 vC;'+
+        'void main(){vA=aAlpha;vC=aColor;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+      fragmentShader:'varying float vA;varying vec3 vC;void main(){gl_FragColor=vec4(vC,vA);}'});
+    s.lines=new THREE.LineSegments(s.lgeo,s.lmat);
+    s.lines.frustumCulled=false;
+    scene.add(s.lines);
+  },
+  _applyBlend(s){
+    const c=s.cfg;
+    const add=(c.blend||'add')!=='normal';
+    const solid=!!(c.solid??true);
+    s.mat.blending=add?THREE.AdditiveBlending:THREE.NormalBlending;
+    s.mat.depthWrite=add?false:solid;
+    if(s.lmat){ s.lmat.blending=s.mat.blending; s.lmat.depthWrite=s.mat.depthWrite; }
+  },
+
+  /* ---------- 发射模式：出生表（确定性） ---------- */
+  rebuildEmit(s){
+    const c=s.cfg;
+    const N=c.burst>0?Math.min(PMAX,Math.round(c.burst))
+                     :Math.min(PMAX,Math.floor((c.rate||1)*Math.max(.01,c.t1-c.t0)));
+    s._eN=N; s._eMaxLife=0;
+    s._birth=new Float32Array(N); s._life=new Float32Array(N);
+    s._p0=new Float32Array(N*3);  s._v0=new Float32Array(N*3); s._ph=new Float32Array(N*3);
+    const dir=new THREE.Vector3(+c.dirX||0,+c.dirY||0,+c.dirZ||0);
+    if(dir.lengthSq()<1e-6) dir.set(0,1,0);
+    dir.normalize();
+    const ref=Math.abs(dir.y)>.99?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+    const t1=new THREE.Vector3().crossVectors(dir,ref).normalize();
+    const t2=new THREE.Vector3().crossVectors(dir,t1);
+    const cosMax=Math.cos((c.spreadAngle||0)*Math.PI/180);
+    const R=c.emSize||.5;
+    for(let i=0;i<N;i++){
+      const r1=s.seeds[(i*3+1)%PMAX], r2=s.seeds[(i*3+2)%PMAX],
+            r3=s.dchk[(i*5+3)%PMAX],   r4=s.seeds[(i*7+5)%PMAX];
+      s._birth[i]= c.burst>0 ? c.t0+i*0.004 : c.t0+i/(c.rate||1);
+      s._life[i]=Math.max(.05,(c.lifetime||1)*(1+(r4-.5)*2*(c.lifeVar||0)));
+      s._eMaxLife=Math.max(s._eMaxLife,s._life[i]);
+      let px=0,py=0,pz=0;
+      switch(c.emitter){
+        case 'sphere':{const th=r1*Math.PI*2,ph=Math.acos(2*r2-1),RR=R*Math.cbrt(r3);
+          px=Math.sin(ph)*Math.cos(th)*RR;py=Math.cos(ph)*RR;pz=Math.sin(ph)*Math.sin(th)*RR;break;}
+        case 'box':px=(r1*2-1)*R;py=(r2*2-1)*R;pz=(r3*2-1)*R;break;
+        case 'circle':{const th=r1*Math.PI*2,RR=R*Math.sqrt(r2),ct=Math.cos(th),st=Math.sin(th);
+          px=t1.x*ct*RR+t2.x*st*RR;py=t1.y*ct*RR+t2.y*st*RR;pz=t1.z*ct*RR+t2.z*st*RR;break;}
+      }
+      s._p0[i*3]=px; s._p0[i*3+1]=py; s._p0[i*3+2]=pz;
+      const cosA=1-(1-cosMax)*r1, sinA=Math.sqrt(Math.max(0,1-cosA*cosA)), th2=r2*Math.PI*2;
+      const vm=(c.speed0||1)*(1+(r3-.5)*2*(c.speedVar||0));
+      s._v0[i*3]  =(dir.x*cosA+t1.x*sinA*Math.cos(th2)+t2.x*sinA*Math.sin(th2))*vm;
+      s._v0[i*3+1]=(dir.y*cosA+t1.y*sinA*Math.cos(th2)+t2.y*sinA*Math.sin(th2))*vm;
+      s._v0[i*3+2]=(dir.z*cosA+t1.z*sinA*Math.cos(th2)+t2.z*sinA*Math.sin(th2))*vm;
+      s._ph[i*3]=r1*6.283; s._ph[i*3+1]=r2*6.283; s._ph[i*3+2]=r3*6.283;
+    }
   },
 
   sysCenter(s){
@@ -1594,27 +1888,21 @@ const Particles={
     if(ai>=0&&State.parts[ai]) return State.parts[ai].mesh.position.clone();
     return assemblyCenter();
   },
-
   presetPts(s){
     const c=this.sysCenter(s);
     switch(s.cfg.pathType){
       case 'line': return [
         new THREE.Vector3(c.x-8,c.y,c.z),new THREE.Vector3(c.x-3,c.y,c.z),
         new THREE.Vector3(c.x+3,c.y,c.z),new THREE.Vector3(c.x+8,c.y,c.z)];
-      case 'spiral': {
-        const pts=[],R=5;
+      case 'spiral': {const pts=[],R=5;
         for(let i=0;i<=8;i++){const a=i/8*Math.PI*2.5;
           pts.push(new THREE.Vector3(c.x+Math.cos(a)*R,c.y-.5+i/8*5,c.z+Math.sin(a)*R));}
-        return pts;
-      }
-      case 'circle': {
-        const pts=[],R=6.5;
+        return pts;}
+      case 'circle': {const pts=[],R=6.5;
         for(let i=0;i<8;i++){const a=i/8*Math.PI*2;
           pts.push(new THREE.Vector3(c.x+Math.cos(a)*R,c.y+1,c.z+Math.sin(a)*R));}
-        return pts;
-      }
-      case 'custom':
-        return s.handles.map(h=>h.position.clone());
+        return pts;}
+      case 'custom': return s.handles.map(h=>h.position.clone());
       default:
         return [new THREE.Vector3(c.x-8,c.y-.7,c.z),new THREE.Vector3(c.x-4,c.y+1.8,c.z+1),
                 new THREE.Vector3(c.x,c.y+3.2,c.z),new THREE.Vector3(c.x+4,c.y+1.8,c.z-1),
@@ -1622,7 +1910,6 @@ const Particles={
     }
   },
   buildCurve(s){ s.curve=new THREE.CatmullRomCurve3(this.presetPts(s)); },
-
   buildHandles(s){
     if(s.handleGroup) scene.remove(s.handleGroup);
     s.handleGroup=new THREE.Group();
@@ -1704,7 +1991,6 @@ const Particles={
   hideAllHandles(){
     this.systems.forEach(s=>{ if(s.handleGroup){s.handleGroup.visible=false;s.selHandle=-1;s.panelOpen=false;} });
   },
-
   paramAt(s,u,out){
     if(s.cfg.pathType==='custom'&&s.handles.length>=2){
       const n=s.handles.length;
@@ -1722,52 +2008,54 @@ const Particles={
       out.s=c.sizeStart+(c.sizeEnd-c.sizeStart)*u;
       out.w=c.spreadStart+(c.spreadEnd-c.spreadStart)*u;
       const col=this._pc||(this._pc=new THREE.Color());
-      col.set(c.color);
+      col.set(c.colorStart||c.color);
       out.cr=col.r; out.cg=col.g; out.cb=col.b;
     }
     return out;
   },
-
   setOn(s,v){
     this.initSys(s);
     s.on=v;
-    if(!v){ s.points.visible=false; s.selHandle=-1; s.panelOpen=false; }
+    if(!v){ s.points.visible=false; if(s.lines)s.lines.visible=false; s.selHandle=-1; s.panelOpen=false; }
     this.showHandles(s, v&&s.cfg.pathType==='custom');
     updateToolbar(); TL.rebuild(); this.updateSys(s,State.time);
   },
 
   updateSys(s,t){
     if(!s.points) return;
-    const solid=!!(s.cfg.solid??true);
-    if(s.mat.depthWrite!==solid){ s.mat.depthWrite=solid; s.mat.needsUpdate=true; }
-    if(s.cfg.attach>=0&&State.parts[s.cfg.attach]){
-      const pc=State.parts[s.cfg.attach].mesh.position;
+    const c=s.cfg;
+    this._applyBlend(s);
+    if(c.attach>=0&&State.parts[c.attach]){
+      const pc=State.parts[c.attach].mesh.position;
       if(!s._lastC||s._lastC.distanceToSquared(pc)>1e-6){
         s._lastC=pc.clone();
-        this.buildCurve(s);
+        if((c.mode||'path')==='path') this.buildCurve(s);
       }
     }
-    if(!s.on){ s.points.visible=false; return; }
-    const {t0,t1,speed,countStart,countEnd,gAlpha}=s.cfg;
-    if(t<t0||t>t1+0.8){ s.points.visible=false; return; }
+    if(!s.on){ s.points.visible=false; if(s.lines)s.lines.visible=false; return; }
+    const tail=(c.mode==='emit')?(s._eMaxLife||0):0.8;
+    if(t<c.t0||t>c.t1+tail){ s.points.visible=false; if(s.lines)s.lines.visible=false; return; }
+    const gA=(c.gAlpha??1)*THREE.MathUtils.clamp((t-c.t0)/.3,0,1)
+      *(t>c.t1?THREE.MathUtils.clamp(1-(t-c.t1)/.8,0,1):1);
+    if(c.mode==='emit'){ this._updateEmit(s,t,gA); return; }
+    /* ---------- 路径流动（原有逻辑） ---------- */
     s.points.visible=true;
-    const sc=s.cfg.scale??1;
-    const c=(sc!==1)?this.sysCenter(s):null;
+    if(s.lines) s.lines.visible=false;
+    const sc=c.scale??1;
+    const cc=(sc!==1)?this.sysCenter(s):null;
     if(s.handleGroup){
       if(sc!==1){
         s.handleGroup.scale.setScalar(sc);
-        s.handleGroup.position.copy(c).multiplyScalar(1-sc);
+        s.handleGroup.position.copy(cc).multiplyScalar(1-sc);
       }else{
         s.handleGroup.scale.setScalar(1);
         s.handleGroup.position.set(0,0,0);
       }
     }
+    const {t0,t1,speed,countStart,countEnd}=c;
     const grow=THREE.MathUtils.clamp((t-t0)/Math.max(.01,(t1-t0)*.6),0,1);
     const ge=1-Math.pow(1-grow,2);
     const count=Math.max(0,Math.min(PMAX,Math.floor(countStart+(countEnd-countStart)*ge)));
-    const fadeIn=THREE.MathUtils.clamp((t-t0)/.3,0,1);
-    const fadeOut=t>t1?THREE.MathUtils.clamp(1-(t-t1)/.8,0,1):1;
-    const gA=(gAlpha??1)*fadeIn*fadeOut;
     const _p=new THREE.Vector3();
     const P={d:0,s:0,w:0,cr:0,cg:0,cb:0};
     for(let i=0;i<PMAX;i++){
@@ -1778,7 +2066,7 @@ const Particles={
       this.paramAt(s,u,P);
       if(s.dchk[i]>P.d){ s.aAlpha[i]=0; s.aSize[i]=0; continue; }
       s.curve.getPoint(u,_p);
-      if(sc!==1){ _p.sub(c).multiplyScalar(sc).add(c); }
+      if(sc!==1){ _p.sub(cc).multiplyScalar(sc).add(cc); }
       s.pos[idx]  =_p.x+s.jit[idx]*P.w;
       s.pos[idx+1]=_p.y+s.jit[idx+1]*P.w;
       s.pos[idx+2]=_p.z+s.jit[idx+2]*P.w;
@@ -1792,13 +2080,84 @@ const Particles={
     s.geo.attributes.aAlpha.needsUpdate=true;
     s.geo.attributes.aColor.needsUpdate=true;
   },
+
+  /* ---------- 发射模式求值 ---------- */
+  _updateEmit(s,t,gA){
+    const c=s.cfg;
+    const N=s._eN||0;
+    const cc=this.sysCenter(s);
+    const k=Math.max(0,c.drag||0), g=c.gravity||0;
+    const streak=c.render==='streak';
+    s.points.visible=!streak;
+    if(s.lines) s.lines.visible=streak;
+    const colA=this._cA||(this._cA=new THREE.Color());
+    const colB=this._cB||(this._cB=new THREE.Color());
+    colA.set(c.colorStart||c.color); colB.set(c.colorEnd||c.color);
+    const fIn=Math.max(.01,c.fadeIn??.15), fOut=Math.max(.01,c.fadeOut??.35);
+    const szA=c.sizeStart??.5, szB=c.sizeEnd??.1;
+    const sLen=c.streakLen??.06, tF=(c.turbFreq||1.5)*6.283, tA=c.turb||0;
+    const posOf=(age)=>{
+      let lin,gl,e;
+      if(k>1e-4){ e=Math.exp(-k*age); lin=(1-e)/k; gl=(age-lin)/k; }
+      else{ e=0; lin=age; gl=.5*age*age; }
+      return {lin,gl,e};
+    };
+    for(let i=0;i<PMAX;i++){
+      const dead=(i>=N)||t<s._birth[i];
+      let an=-1;
+      if(!dead){
+        const age=t-s._birth[i];
+        an=age/s._life[i];
+        if(an>=1) an=-1;
+      }
+      if(an<0){ s.aAlpha[i]=0; s.aSize[i]=0;
+        if(streak){s.lalp[i*2]=0;s.lalp[i*2+1]=0;} continue; }
+      const age=t-s._birth[i];
+      const P1=posOf(age);
+      const ramp=k>1e-4?(1-P1.e):Math.min(1,age);
+      const ph0=s._ph[i*3],A=tA*ramp;
+      const X=cc.x+s._p0[i*3]  +s._v0[i*3]  *P1.lin+      A*Math.sin(age*tF+ph0);
+      const Y=cc.y+s._p0[i*3+1]+s._v0[i*3+1]*P1.lin+g*P1.gl+A*Math.sin(age*tF*1.13+ph0+2.1);
+      const Z=cc.z+s._p0[i*3+2]+s._v0[i*3+2]*P1.lin+      A*Math.cos(age*tF*.87+ph0+4.2);
+      const a=Math.min(1,an/fIn)*(1-Math.max(0,(an-(1-fOut))/fOut));
+      const cr=colA.r+(colB.r-colA.r)*an, cg=colA.g+(colB.g-colA.g)*an, cb=colA.b+(colB.b-colA.b)*an;
+      if(streak){
+        const P2=posOf(Math.max(0,age-sLen));
+        const ramp2=k>1e-4?(1-P2.e):1;
+        const A2=tA*ramp2;
+        s.lpos[i*6]=X; s.lpos[i*6+1]=Y; s.lpos[i*6+2]=Z;
+        s.lpos[i*6+3]=cc.x+s._p0[i*3]  +s._v0[i*3]  *P2.lin+      A2*Math.sin((age-sLen)*tF+ph0);
+        s.lpos[i*6+4]=cc.y+s._p0[i*3+1]+s._v0[i*3+1]*P2.lin+g*P2.gl+A2*Math.sin((age-sLen)*tF*1.13+ph0+2.1);
+        s.lpos[i*6+5]=cc.z+s._p0[i*3+2]+s._v0[i*3+2]*P2.lin+      A2*Math.cos((age-sLen)*tF*.87+ph0+4.2);
+        s.lcol[(i*2)*3]=cr;   s.lcol[(i*2)*3+1]=cg;   s.lcol[(i*2)*3+2]=cb;
+        s.lcol[(i*2+1)*3]=cr; s.lcol[(i*2+1)*3+1]=cg; s.lcol[(i*2+1)*3+2]=cb;
+        s.lalp[i*2]=gA*a; s.lalp[i*2+1]=gA*a*.35;
+      }else{
+        s.pos[i*3]=X; s.pos[i*3+1]=Y; s.pos[i*3+2]=Z;
+        s.aSize[i]=szA+(szB-szA)*an;
+        s.aAlpha[i]=gA*a;
+        s.aColor[i*3]=cr; s.aColor[i*3+1]=cg; s.aColor[i*3+2]=cb;
+      }
+    }
+    if(streak){
+      s.lgeo.attributes.position.needsUpdate=true;
+      s.lgeo.attributes.aColor.needsUpdate=true;
+      s.lgeo.attributes.aAlpha.needsUpdate=true;
+    }else{
+      s.geo.attributes.position.needsUpdate=true;
+      s.geo.attributes.aSize.needsUpdate=true;
+      s.geo.attributes.aAlpha.needsUpdate=true;
+      s.geo.attributes.aColor.needsUpdate=true;
+    }
+  },
   update(t){ this.systems.forEach(s=>this.updateSys(s,t)); },
 
   applyCfg(s){
     this.initSys(s);
     s._lastC=null;
-    this.buildCurve(s);
-    this.showHandles(s, s.on&&s.cfg.pathType==='custom');
+    if((s.cfg.mode||'path')==='path'){ this.buildCurve(s); this.showHandles(s, s.on&&s.cfg.pathType==='custom'); }
+    else{ this.hideAllHandles(); this.showHandles(s,false); }
+    if(s.cfg.mode==='emit') this.rebuildEmit(s);
     this.updateSys(s,State.time);
     TL.rebuild();
   },
@@ -1806,7 +2165,8 @@ const Particles={
     this.systems.forEach(s=>{
       this.initSys(s);
       s._lastC=null;
-      this.buildCurve(s);
+      if((s.cfg.mode||'path')==='path') this.buildCurve(s);
+      else this.rebuildEmit(s);
       this.updateSys(s,State.time);
     });
   },
@@ -1825,7 +2185,12 @@ const Particles={
     this.systems.length=0;
     if(!d||!d.systems||!d.systems.length) return;
     d.systems.forEach(sd=>{
-      const s=this.addSystem(sd.cfg);
+      const cfg=Object.assign({},PT_DEFAULTS,sd.cfg||{});
+      if(!cfg.mode) cfg.mode='path';
+      if(!cfg.colorStart) cfg.colorStart=cfg.color||'#4adfff';
+      if(!cfg.colorEnd)   cfg.colorEnd=cfg.colorStart;
+      sd.cfg=cfg;
+      const s=this.addSystem(cfg);
       if(!s)return;
       if(sd.handles&&sd.handles.length){
         this.initSys(s);
@@ -1951,12 +2316,14 @@ tCtrl.addEventListener('dragging-changed',e=>{
       return;
     }
     if(isMulti&&multiSnap){
+      const grp=State.groups.find(g=>g.parts.length===State.sel.length&&g.parts.every(x=>State.sel.includes(x)));
       if(State.autoKey){
         multiSnap.forEach(({p})=>{
           UI.captureKey(p,{pos:[...p.offset],rot:[...p.rot],sc:[...p.sc]});
         });
         TL.rebuild();
-        UI.toast('已为 '+multiSnap.length+' 个零件记录组变换关键帧 @ '+State.time.toFixed(2)+'s');
+        UI.toast('已为 '+multiSnap.length+' 个零件记录组变换关键帧 @ '+State.time.toFixed(2)+'s'
+          +(grp?(' · 📦「'+grp.name+'」'):''));
       }else{
         let n=0;
         multiSnap.forEach(({p})=>{ if(bakePartStatic(p,false)) n++; });
@@ -2641,7 +3008,7 @@ const Section={
   }
 };
 
-/* ==================== 💧 液体系统（高度场波动·零件搅动·泡沫） ==================== */
+/* ==================== 💧 液体系统 ==================== */
 const Liquid={
   cfg:{on:false,container:-1,box:{w:3,d:3,h:2.4},
        level:.6,color:'#3a8fd8',opacity:.5,
@@ -2929,7 +3296,6 @@ function applyExplode(){
 
 /* ==================== 相机运镜 ==================== */
 let camWasDriven=false;
-/* ★ v6.28.9: 使用关键帧存储的 up 向量（保留翻滚） */
 function applyCameraAnim(){
   const c=evalCam(State.camKeys,State.time);
   if(c){
@@ -2993,6 +3359,8 @@ function updateBOM(){
 }
 function drawBom2D(ctx,w,h){
   if(!State.bomOn) return;
+  const fs=Math.max(12,Math.round(w/130));
+  const rr=Math.round(fs*1.07);
   State.parts.forEach((p,i)=>{
     const a=bomAlpha(i); if(a<=.01) return;
     partCentroidScreen(p);
@@ -3000,15 +3368,15 @@ function drawBom2D(ctx,w,h){
     const x=(_wp.x*.5+.5)*w, y=(-_wp.y*.5+.5)*h;
     const txt=tagText(p,i);
     ctx.globalAlpha=a;
-    ctx.fillStyle='#4a7dff'; ctx.font='bold 14px sans-serif';
+    ctx.fillStyle='#4a7dff'; ctx.font='bold '+fs+'px sans-serif';
     ctx.textAlign='center'; ctx.textBaseline='middle';
     if(txt.length>2){
-      const tw=ctx.measureText(txt).width+18;
+      const tw=ctx.measureText(txt).width+fs*1.3;
       ctx.beginPath();
-      if(ctx.roundRect) ctx.roundRect(x-tw/2,y-14,tw,28,14); else ctx.rect(x-tw/2,y-14,tw,28);
+      if(ctx.roundRect) ctx.roundRect(x-tw/2,y-rr,tw,rr*2,rr); else ctx.rect(x-tw/2,y-rr,tw,rr*2);
       ctx.fill();
     }else{
-      ctx.beginPath(); ctx.arc(x,y,15,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x,y,rr,0,Math.PI*2); ctx.fill();
     }
     ctx.fillStyle='#fff';
     ctx.fillText(txt,x,y+1);
@@ -3079,7 +3447,8 @@ const TL={
     Particles.systems.forEach((s,si)=>{
       const lb=document.createElement('div'); lb.className='trackLabel';
       const at=(s.cfg.attach>=0&&State.parts[s.cfg.attach])?('·'+State.parts[s.cfg.attach].name):'';
-      lb.textContent='✨ 粒子'+(si+1)+(s.on?'':'(关)')+at;
+      const mode=(s.cfg.mode||'path')==='emit'?'发射':'路径';
+      lb.textContent='✨ 粒子'+(si+1)+(s.on?'':'(关)')+'·'+mode+at;
       TL.labels.appendChild(lb);
       const tr=document.createElement('div'); tr.className='track particle';
       if(s.on){
@@ -3099,7 +3468,9 @@ const TL={
               const t=snapTime(TL.xToTime(e2.clientX-rect.left),allKeysFlat(),null);
               if(side==='l') s.cfg.t0=Math.max(0,Math.min(t,s.cfg.t1-.3));
               else s.cfg.t1=Math.min(State.duration,Math.max(t,s.cfg.t0+.3));
-              sync(); Particles.updateSys(s,State.time);
+              sync();
+              if(s.cfg.mode==='emit') Particles.rebuildEmit(s);
+              Particles.updateSys(s,State.time);
             };
             const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);};
             addEventListener('pointermove',mv); addEventListener('pointerup',up);
@@ -3118,7 +3489,9 @@ const TL={
             const nt=snapTime(TL.xToTime(e2.clientX-rect.left),allKeysFlat(),null)-len/2;
             s.cfg.t0=Math.max(0,Math.min(nt,State.duration-len));
             s.cfg.t1=s.cfg.t0+len;
-            sync(); Particles.updateSys(s,State.time);
+            sync();
+            if(s.cfg.mode==='emit') Particles.rebuildEmit(s);
+            Particles.updateSys(s,State.time);
           };
           const up=()=>{removeEventListener('pointermove',mv);removeEventListener('pointerup',up);};
           addEventListener('pointermove',mv); addEventListener('pointerup',up);
@@ -3131,7 +3504,10 @@ const TL={
       if(p.matKeys&&p.matKeys.length)
         addRow(p.name+'·材质 ('+p.matKeys.length+'k)',p.matKeys,'bom','matKey',p);
     });
-    State.parts.forEach(p=>addRow(p.name+' ('+p.keys.length+'k)',p.keys,'','part',p));
+    State.parts.forEach(p=>{
+      const g=Groups.of(State.parts.indexOf(p));
+      addRow((g?'📦':'')+p.name+' ('+p.keys.length+'k)',p.keys,'','part',p);
+    });
     TL.updatePlayhead();
     document.getElementById('stParts').textContent='零件: '+State.parts.length;
     document.getElementById('stKeys').textContent='关键帧: '+State.parts.reduce((s,p)=>s+p.keys.length,0);
@@ -3213,7 +3589,10 @@ const Anim={
       p.keys=p.keys.filter(k=>k.t<=State.duration);
       if(p.matKeys) p.matKeys=p.matKeys.filter(k=>k.t<=State.duration);
     });
-    Particles.systems.forEach(s=>s.cfg.t1=Math.min(s.cfg.t1,State.duration));
+    Particles.systems.forEach(s=>{
+      s.cfg.t1=Math.min(s.cfg.t1,State.duration);
+      if(s.cfg.mode==='emit') Particles.rebuildEmit(s);
+    });
     State.time=0; TL.rebuild(); sync();
   },
   tick(now){
@@ -3298,6 +3677,7 @@ function captureInit(){
     explodeMode:State.explodeMode, mixRatio:State.mixRatio,
     assemblySpin:{...(State.assemblySpin||{})},
     bg:State.bg,
+    groups:State.groups.map(g=>({name:g.name,parts:[...g.parts]})),
     section:{...State.section}, sectionKeys:[],
     camKeys:[], bomKeys:[],
     liquid:JSON.parse(JSON.stringify(Liquid.cfg)),
@@ -3324,6 +3704,7 @@ function restoreInit(json){
   State.assemblySpin={...d.assemblySpin};
   Spin.reset();
   State.bg=d.bg;
+  State.groups=(d.groups||[]).map(g=>({name:g.name||'组',parts:(g.parts||[]).filter(i=>i<State.parts.length)}));
   State.section={...d.section};
   State.sectionKeys=[];
   State.camKeys=[];
@@ -3401,10 +3782,14 @@ const UI={
   setExplode(v){
     State.explodeAmount=+v;
     document.getElementById('explodeVal').textContent=v+'%';
+    const grp=State.sel.length>1
+      ?State.groups.find(g=>g.parts.length===State.sel.length&&g.parts.every(x=>State.sel.includes(x)))
+      :null;
     if(State.autoKey){
       const targets=State.sel.length?State.sel.map(i=>State.parts[i]):State.parts;
       targets.forEach(p=>UI.captureKey(p,{exp:v/100}));
       TL.rebuild();
+      if(grp) UI.toast('📦 组「'+grp.name+'」'+targets.length+' 件已记录爆炸关键帧 @ '+State.time.toFixed(2)+'s');
     }else{
       const targets=State.sel.length?State.sel.map(i=>State.parts[i]):State.parts;
       let n=0;
@@ -3438,12 +3823,12 @@ const UI={
     const targets=State.sel.length?State.sel.map(i=>State.parts[i]):State.parts;
     targets.forEach(p=>UI.captureKey(p,{}));
     UI.refresh(); sync();
-    UI.toast('已为 '+targets.length+' 个零件在 '+State.time.toFixed(2)+'s 打关键帧');
+    const grp=State.sel.length>1
+      ?State.groups.find(g=>g.parts.length===State.sel.length&&g.parts.every(x=>State.sel.includes(x)))
+      :null;
+    UI.toast('已为 '+targets.length+' 个零件在 '+State.time.toFixed(2)+'s 打关键帧'
+      +(grp?(' · 📦 组「'+grp.name+'」'):''));
   },
-  /* ★ v6.28.9: 相机关键帧修复
-     - 捕获世界 up 向量（保留翻滚/侧倾）
-     - 普通点击 = 清除全部旧相机帧（含演示预设）后插入 → 播放锁定当前视角
-     - Shift+点击 = 仅替换当前时刻的帧（不清除其他，用于多帧运镜） */
   addCamKeyframe(e){
     History.push('camKey');
     const ease=document.getElementById('easingSel').value;
@@ -3485,7 +3870,7 @@ const UI={
     State.boxMode=!State.boxMode;
     if(State.boxMode){ State.gizmoMode=null; tCtrl.detach(); }
     updateToolbar(); syncGizmo();
-    UI.toast(State.boxMode?'框选模式: 视口左键拖框（Ctrl累加）→ 之后可 G/R/S 整组变换':'框选模式已关闭');
+    UI.toast(State.boxMode?'框选模式: 视口左键拖框（Ctrl累加）→ 之后可 G/R/S 或 📦打组':'框选模式已关闭');
   },
   resetView(){
     if(State.viewLock){ UI.toast('🔒 视图已锁定 — 先解锁'); return; }
@@ -3536,7 +3921,7 @@ const UI={
     restoreInit(State._initFull);
     History.clear();
     setDirty(true);
-    UI.toast('已复位到初始状态 ↺（零件/动画/爆炸/整体旋转/剖面/公转/液体全部还原）');
+    UI.toast('已复位到初始状态 ↺（零件/动画/爆炸/整体旋转/剖面/公转/液体/组全部还原）');
   },
   autoGenBOMKeys(){
     State.bomKeys=State.parts.map((p,i)=>{
@@ -3590,11 +3975,19 @@ const UI={
       const spinTxt=(p.spin&&(p.spin[0]||p.spin[1]||p.spin[2]))?' ⟳':'';
       const orbTxt=(p.pivot>=0&&State.parts[p.pivot]&&p.pivotSpeed)?(' <span style="color:#ffd24a;font-size:9px" title="绕 '+(p.pivot+1)+' 号零件公转">◎'+(p.pivot+1)+'</span>'):'';
       const matTxt=p.mat&&p.mat!=='metal'?(' <span style="color:#4adfff;font-size:9px">'+(p.mat==='custom'?'⚙':(MATS[p.mat]?MATS[p.mat].name:'⚙'))+'</span>'):'';
+      const grp=Groups.of(i);
+      const grpTxt=grp?(' <span class="grpBadge" title="点击=选整组 · 双击=组重命名">📦'+grp.name+'</span>'):'';
+      if(grp) el.style.paddingLeft='22px';
       el.innerHTML='<span class="dot" style="background:#'+p.mesh.material.color.getHexString()+'"></span>'
         +'<span style="color:#8ab4ff;font-weight:bold">'+(i+1)+'</span> '
         +'<span style="cursor:grab">⠿</span> '
-        +p.name+spinTxt+orbTxt+matTxt+' <span style="color:#567;font-size:10px">('+p.keys.length+'k)</span>';
+        +p.name+spinTxt+orbTxt+matTxt+grpTxt+' <span style="color:#567;font-size:10px">('+p.keys.length+'k)</span>';
       el.onclick=e=>{
+        if(e.target.closest('.grpBadge')){
+          const g=Groups.of(i);
+          if(g) Groups.select(g);
+          return;
+        }
         if(e.ctrlKey||e.metaKey){
           const j=State.sel.indexOf(i);
           if(j>=0)State.sel.splice(j,1); else State.sel.push(i);
@@ -3604,6 +3997,11 @@ const UI={
         UI.refresh(); UI.showSel();
       };
       el.ondblclick=e=>{
+        if(e.target.closest('.grpBadge')){
+          const g=Groups.of(i);
+          if(g) Groups.rename(g);
+          return;
+        }
         if(e.target.textContent==='⠿')return;
         const n=prompt('零件名称:',p.name);
         if(n){p.name=n;UI.refresh();}
@@ -3623,6 +4021,7 @@ const UI={
                                     .filter(k=>k.pi>=0);
         State.parts.forEach(pp=>{ if(pp.pivot>=0) pp.pivot=State.parts.indexOf(refs[pp.pivot]); });
         if(Liquid.cfg.container>=0) Liquid.cfg.container=State.parts.indexOf(refs[Liquid.cfg.container]);
+        Groups.remap(refs);
         UI.toast('已调整顺序: '+moved.name);
         UI.refresh(); sync();
       });
@@ -3634,6 +4033,7 @@ const UI={
     Section.apply(State.time);
     updateToolbar();
     updateSelectionVisual();
+    Groups.rebuildQuick();
   },
   renderProps(){
     const panel=document.getElementById('propsPanel');
@@ -3675,8 +4075,9 @@ const UI={
       el.style.display='block';
       el.textContent='已选中: '+(State.sel[0]+1)+'. '+State.parts[State.sel[0]].name;
     }else if(State.sel.length>1){
+      const g=State.groups.find(g=>g.parts.length===State.sel.length&&g.parts.every(x=>State.sel.includes(x)));
       el.style.display='block';
-      el.textContent='已选中 '+State.sel.length+' 个零件（组模式：G/R/S 可整体变换）';
+      el.textContent='已选中 '+State.sel.length+' 个零件'+(g?(' · 📦 组「'+g.name+'」— ◆打帧/G·R·S 按组进行'):('（组模式：G/R/S 可整体变换）'));
     }else el.style.display='none';
     document.getElementById('stSel').textContent='选中: '+State.sel.length;
   },
@@ -3690,21 +4091,20 @@ const UI={
   }
 };
 
-/* ==================== 粒子设置面板 ==================== */
+/* ==================== 粒子设置面板（★ v6.28.15） ==================== */
 const PT={
   open(){
     if(!Particles.systems.length) Particles.addSystem();
-    document.getElementById('ptModal').style.display='flex';
-    PT.syncSysList();
-    PT.fill();
+    $('ptModal').style.display='flex';
+    PT.syncSysList(); PT.fill();
   },
   syncSysList(){
-    const sel=document.getElementById('ptSys');
+    const sel=$('ptSys');
     sel.innerHTML='';
     Particles.systems.forEach((s,i)=>{
       const o=document.createElement('option');
       const at=(s.cfg.attach>=0&&State.parts[s.cfg.attach])?('·'+State.parts[s.cfg.attach].name):'';
-      o.value=i; o.textContent='粒子系统 '+(i+1)+(s.on?'':'（关）')+at;
+      o.value=i; o.textContent='系统 '+(i+1)+(s.on?'':'（关）')+'·'+((s.cfg.mode||'path')==='emit'?'发射':'路径')+at;
       sel.appendChild(o);
     });
     sel.value=Particles.selSys;
@@ -3712,55 +4112,95 @@ const PT={
   fill(){
     const s=Particles.cur(); if(!s)return;
     const c=s.cfg;
-    const at=document.getElementById('ptAttach');
-    at.innerHTML='';
-    const o=document.createElement('option');
-    o.value='-1'; o.textContent='无（以装配体为中心）';
-    at.appendChild(o);
-    State.parts.forEach((p,i)=>{
-      const o2=document.createElement('option');
-      o2.value=i; o2.textContent=(i+1)+'. '+p.name;
-      at.appendChild(o2);
-    });
+    const mode=(c.mode||'path');
+    const mEl=document.querySelector('input[name=ptMode][value="'+mode+'"]');
+    if(mEl) mEl.checked=true;
+    this._toggleMode(mode);
+    const at=$('ptAttach');
+    at.innerHTML='<option value="-1">无（装配体中心）</option>';
+    State.parts.forEach((p,i)=>{const o=document.createElement('option');
+      o.value=i;o.textContent=(i+1)+'. '+p.name;at.appendChild(o);});
     at.value=String(c.attach??-1);
-    document.getElementById('ptSolid').checked=!!(c.solid??true);
-    document.getElementById('ptPath').value=c.pathType;
-    document.getElementById('ptScale').value=c.scale??1;
-    document.getElementById('ptScaleVal').textContent=(c.scale??1).toFixed(1)+'×';
-    document.getElementById('ptT0').value=c.t0;
-    document.getElementById('ptT1').value=c.t1;
-    document.getElementById('ptSpd').value=c.speed;
-    document.getElementById('ptSpdVal').textContent=c.speed.toFixed(1);
-    document.getElementById('ptGA').value=Math.round((c.gAlpha??1)*100);
-    document.getElementById('ptGAVal').textContent=Math.round((c.gAlpha??1)*100)+'%';
-    document.getElementById('ptColor').value=c.color;
-    PT.syncHN();
+    $('ptSolid').checked=!!(c.solid??true);
+    $('ptEmit').value=c.emitter||'point'; $('ptEmSize').value=c.emSize??.5;
+    $('ptSpread').value=c.spreadAngle??30;
+    $('ptDirX').value=(+c.dirX||0).toFixed(1);
+    $('ptDirY').value=(+c.dirY||0).toFixed(1);
+    $('ptDirZ').value=(+c.dirZ||0).toFixed(1);
+    $('ptSpeed0').value=c.speed0??3;   $('ptSpeedVar').value=c.speedVar??.3;
+    $('ptRate').value=c.rate??60;       $('ptBurst').value=c.burst||0;
+    $('ptLife').value=c.lifetime??2;    $('ptLifeVar').value=c.lifeVar??.3;
+    $('ptGrav').value=c.gravity??-4;    $('ptDrag').value=c.drag??.2;
+    $('ptTurb').value=c.turb??0;        $('ptTurbF').value=c.turbFreq??1.5;
+    $('ptPath').value=c.pathType;
+    $('ptScale').value=c.scale??1; $('ptScaleVal').textContent=(c.scale??1).toFixed(1)+'×';
+    $('ptSpd').value=c.speed??1;   $('ptSpdVal').textContent=(c.speed??1).toFixed(1);
+    $('ptT0').value=c.t0;          $('ptT1').value=c.t1;
+    $('ptSzA').value=c.sizeStart??.5; $('ptSzB').value=c.sizeEnd??.1;
+    $('ptColA').value=c.colorStart||c.color;
+    $('ptColB').value=c.colorEnd||c.colorStart||c.color;
+    $('ptFIn').value=c.fadeIn??.15;   $('ptFOut').value=c.fadeOut??.35;
+    $('ptRender').value=c.render||'point'; $('ptStreak').value=c.streakLen??.06;
+    $('ptBlend').value=c.blend||'add';
+    $('ptGA').value=Math.round((c.gAlpha??1)*100);
+    $('ptGAVal').textContent=Math.round((c.gAlpha??1)*100)+'%';
+    this._cap(); this.syncHN();
+  },
+  _toggleMode(m){
+    $('ptSecEmit').classList.toggle('ptHide',m!=='emit');
+    $('ptSecPath').classList.toggle('ptHide',m!=='path');
+  },
+  _cap(){
+    const s=Particles.cur(); if(!s)return;
+    const c=s.cfg;
+    const need=c.burst>0?c.burst:Math.floor((c.rate||1)*Math.max(.01,c.t1-c.t0));
+    $('ptTotal').textContent='窗口 '+(c.t1-c.t0).toFixed(1)+'s';
+    $('ptCap').textContent='需 '+need+' / 上限 3000'+(need>3000?'（已截断）':'');
   },
   syncHN(){
     const s=Particles.cur(); if(!s)return;
     Particles.initSys(s);
-    document.getElementById('ptHN').textContent=s.handles.length;
-    document.getElementById('ptHDel').disabled=s.handles.length<=2;
+    $('ptHN').textContent=s.handles.length;
+    $('ptHDel').disabled=s.handles.length<=2;
   },
   read(){
     const s=Particles.cur(); if(!s)return;
     const c=s.cfg;
-    const newPath=document.getElementById('ptPath').value;
-    if(newPath==='custom'&&c.pathType!=='custom'){
-      Particles.initSys(s);
-      Particles.buildHandles(s);
-    }
-    c.pathType=newPath;
-    let at=+document.getElementById('ptAttach').value;
-    if(!(at>=0&&State.parts[at])) at=-1;
+    const mEl=document.querySelector('input[name=ptMode]:checked');
+    c.mode=mEl?mEl.value:'emit';
+    const newType=$('ptPath').value;
+    if(newType==='custom'&&c.pathType!=='custom'){ Particles.initSys(s); Particles.buildHandles(s); }
+    c.pathType=newType;
+    let at=+$('ptAttach').value; if(!(at>=0&&State.parts[at])) at=-1;
     if(at!==c.attach){ c.attach=at; s._lastC=null; }
-    c.solid=document.getElementById('ptSolid').checked;
-    c.scale=+document.getElementById('ptScale').value||1;
-    c.t0=Math.max(0,+document.getElementById('ptT0').value||0);
-    c.t1=Math.max(c.t0+.3,Math.min(State.duration,+document.getElementById('ptT1').value||8));
-    c.speed=+document.getElementById('ptSpd').value||1;
-    c.gAlpha=(+document.getElementById('ptGA').value||100)/100;
-    c.color=document.getElementById('ptColor').value;
+    c.solid=$('ptSolid').checked;
+    c.emitter=$('ptEmit').value;
+    c.emSize=Math.max(0,+$('ptEmSize').value||0);
+    c.spreadAngle=THREE.MathUtils.clamp(+$('ptSpread').value||0,0,180);
+    c.dirX=+$('ptDirX').value||0; c.dirY=+$('ptDirY').value||0; c.dirZ=+$('ptDirZ').value||0;
+    c.speed0=Math.max(0,+$('ptSpeed0').value||0);
+    c.speedVar=THREE.MathUtils.clamp(+$('ptSpeedVar').value||0,0,1);
+    c.rate=Math.max(1,+$('ptRate').value||1);
+    c.burst=Math.max(0,Math.round(+$('ptBurst').value||0));
+    c.lifetime=Math.max(.1,+$('ptLife').value||1);
+    c.lifeVar=THREE.MathUtils.clamp(+$('ptLifeVar').value||0,0,1);
+    c.gravity=+$('ptGrav').value||0;
+    c.drag=Math.max(0,+$('ptDrag').value||0);
+    c.turb=Math.max(0,+$('ptTurb').value||0);
+    c.turbFreq=Math.max(0,+$('ptTurbF').value||0);
+    c.scale=+$('ptScale').value||1; c.speed=+$('ptSpd').value||1;
+    c.t0=Math.max(0,+$('ptT0').value||0);
+    c.t1=Math.max(c.t0+.3,Math.min(State.duration,+$('ptT1').value||8));
+    c.sizeStart=Math.max(.02,+$('ptSzA').value||.1);
+    c.sizeEnd=Math.max(.01,+$('ptSzB').value||.05);
+    c.colorStart=$('ptColA').value; c.colorEnd=$('ptColB').value; c.color=c.colorStart;
+    c.fadeIn=THREE.MathUtils.clamp(+$('ptFIn').value||0,0,1);
+    c.fadeOut=THREE.MathUtils.clamp(+$('ptFOut').value||.1,.01,1);
+    c.render=$('ptRender').value;
+    c.streakLen=Math.max(.02,+$('ptStreak').value||.06);
+    c.blend=$('ptBlend').value;
+    c.gAlpha=(+$('ptGA').value||100)/100;
+    this._cap();
   },
   apply(){
     History.push('ptApply');
@@ -3769,17 +4209,18 @@ const PT={
     const s=Particles.cur();
     s.on=true;
     Particles.applyCfg(s);
-    document.getElementById('ptModal').style.display='none';
+    $('ptModal').style.display='none';
     PT.syncSysList();
-    const at=(s.cfg.attach>=0&&State.parts[s.cfg.attach])?('，附着 '+State.parts[s.cfg.attach].name):'';
-    UI.toast('✨ 粒子系统'+(Particles.selSys+1)+' 已应用'+at
-      +(s.cfg.solid?'（实体·可遮挡）':'（非实体）'));
+    const c=s.cfg;
+    UI.toast('✨ 已应用：'+(c.mode==='emit'
+      ?((c.burst>0?('爆发 '+c.burst+' 个'):('速率 '+c.rate+'/s'))+' · 生命 '+c.lifetime+'s · 重力 '+c.gravity+(c.render==='streak'?' · 线迹':''))
+      :('路径·'+c.pathType))+(c.blend!=='normal'?' · 加色':''));
   },
   off(){
     History.push('ptOff');
     const s=Particles.cur();
     if(s) Particles.setOn(s,false);
-    document.getElementById('ptModal').style.display='none';
+    $('ptModal').style.display='none';
     Particles.hideAllHandles();
     PT.syncSysList();
     UI.toast('此粒子系统已关闭');
@@ -3848,7 +4289,7 @@ $('secHA').addEventListener('pointerdown',()=>History.pushOnce('secHA'));
 $('secHA').oninput=e=>{State.section.hatchAngle=+e.target.value;
   $('secHAVal').textContent=e.target.value+'°';Section.apply(State.time);};
 
-/* ==================== 模型导入器 ==================== */
+/* ==================== 模型导入器（带进度条） ==================== */
 const Importer={
   UNIT:{mm:0.001, cm:0.01, m:1, in:0.0254},
   pending:null,
@@ -3863,14 +4304,17 @@ const Importer={
     }
     return best;
   },
-  begin(root, meshes, filename){
+  async begin(root, meshes, filename){
     let verts=0, tris=0, strayTris=0, matGroups=0;
-    meshes.forEach(o=>{
+    for(let i=0;i<meshes.length;i++){
+      const o=meshes[i];
       const g=o.geometry, pos=g&&g.attributes&&g.attributes.position;
       if(pos){ verts+=pos.count; tris+=(g.index?g.index.count:pos.count)/3; }
       if(Array.isArray(o.material)) matGroups+=o.material.length;
       strayTris+=this.countStray(g);
-    });
+      ImpProgress.set(88+(i/meshes.length)*6,'📊 分析几何 '+(i+1)+' / '+meshes.length+'…');
+      if(i%8===0) await nextFrame();
+    }
     const box=new THREE.Box3().setFromObject(root);
     const rawSize=box.isEmpty()?new THREE.Vector3(1,1,1):box.getSize(new THREE.Vector3());
     const rawMax=Math.max(rawSize.x,rawSize.y,rawSize.z,1e-9);
@@ -3887,6 +4331,7 @@ const Importer={
     $('impCustom').value='1';
     $('impClean').checked=true;
     this.updateConv();
+    ImpProgress.set(94,'✓ 解析完成 — 请选择单位');
     $('impModal').style.display='flex';
   },
   selected(){
@@ -3908,6 +4353,7 @@ const Importer={
       +(this.selected()==='auto'?'（自动适配场景）':' 米');
   },
   cancel(){
+    ImpProgress.hide();
     $('impModal').style.display='none';
     if(this.pending){
       this.pending.root.traverse(o=>{ if(o.isMesh&&o.geometry)o.geometry.dispose(); });
@@ -3987,7 +4433,7 @@ const Importer={
     o.geometry=ng;
     return a.strayTris;
   },
-  commit(){
+  async commit(){
     const P=this.pending;
     if(!P){ this.cancel(); return; }
     const root=P.root, meshes=P.meshes;
@@ -4007,9 +4453,12 @@ const Importer={
     State.parts.forEach(p=>scene.remove(p.mesh));
     State.parts=[]; State.camKeys=[]; State.bomKeys=[];
     State.sel=[]; State.selectedKey=null;
+    State.groups=[];
     Particles.hideAllHandles();
     tCtrl.detach();
-    meshes.forEach((o,i)=>{
+    ImpProgress.set(94,'🔧 构建零件…');
+    for(let i=0;i<meshes.length;i++){
+      const o=meshes[i];
       const col='#'+new THREE.Color(PALETTE[i%PALETTE.length]).getHexString();
       if(Array.isArray(o.material)){
         o.material.forEach(mm=>{ if(mm&&mm.dispose) mm.dispose(); });
@@ -4041,7 +4490,9 @@ const Importer={
         color:col,keys:[]};
       State.parts.push(p);
       recenterPart(p);
-    });
+      ImpProgress.set(94+(i/meshes.length)*6,'🔧 构建零件 '+(i+1)+' / '+meshes.length+'…');
+      if(i%5===0) await nextFrame();
+    }
     scene.remove(root);
     computeExplodeVectors('radial');
     const _ab=new THREE.Box3();
@@ -4064,6 +4515,8 @@ const Importer={
     const unitName={mm:'毫米',cm:'厘米',m:'米',in:'英寸',custom:'自定义',auto:'自动适配'}[unit]||unit;
     UI.toast('已导入 '+P.filename+'（'+State.parts.length+' 零件 · 单位: '+unitName+'）'
       +(removed>0?(' · 清理游离面 '+removed):'')+' — 按 F 聚焦');
+    ImpProgress.set(100,'✓ 导入完成');
+    ImpProgress.hide();
   }
 };
 document.querySelectorAll('input[name=impUnit]').forEach(r=>{
@@ -4121,7 +4574,7 @@ addEventListener('pointerup',e=>{
     if(e.ctrlKey||e.metaKey) hits.forEach(i=>{ if(!State.sel.includes(i)) State.sel.push(i); });
     else State.sel=hits;
     UI.refresh(); UI.showSel();
-    UI.toast('框选到 '+hits.length+' 个零件 — 可用 G/R/S 整组变换，F 聚焦');
+    UI.toast('框选到 '+hits.length+' 个零件 — 可 📦打组 / G/R/S 整组变换，F 聚焦');
     return;
   }
   if(!downXY||Math.hypot(e.clientX-downXY[0],e.clientY-downXY[1])>4){downXY=null;return;}
@@ -4320,28 +4773,113 @@ const Curve={
   }
 };
 
-/* ==================== 文件拖放 ==================== */
+/* ==================== 3D 文件加载（导入按钮 + 拖放 共用 · 带进度条） ==================== */
+const FORMAT_TIP='GLB/glTF/OBJ/STL/FBX/DAE/PLY/3DS/3MF';
+
+const ImpProgress={
+  show(){ const box=$('impLoadProgress'); if(box){box.style.display='block';} this.set(0,'准备读取…'); },
+  set(p,msg){
+    const bar=$('impLoadBar'), m=$('impLoadMsg');
+    if(bar) bar.style.width=Math.max(0,Math.min(100,p))+'%';
+    if(m&&msg) m.textContent=msg;
+  },
+  hide(){ const box=$('impLoadProgress'); if(box) box.style.display='none'; }
+};
+const fmtMB=b=>(b/1048576).toFixed(1)+'MB';
+const nextFrame=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+
+function readFileBuffer(file,onP){
+  return new Promise((res,rej)=>{
+    if(!file.stream||!file.stream().getReader){
+      file.arrayBuffer().then(b=>{onP&&onP(file.size,file.size);res(b);},rej);
+      return;
+    }
+    const reader=file.stream().getReader();
+    const chunks=[]; let loaded=0;
+    const total=file.size||0;
+    (async()=>{
+      try{
+        while(true){
+          const {done,value}=await reader.read();
+          if(done)break;
+          chunks.push(value); loaded+=value.length;
+          if(onP) onP(loaded,total>0?total:loaded);
+        }
+        const buf=new Uint8Array(loaded);
+        let off=0;
+        for(const c of chunks){ buf.set(c,off); off+=c.length; }
+        res(buf.buffer);
+      }catch(e){ rej(e); }
+    })();
+  });
+}
+const parseGLTF=data=>new Promise((res,rej)=>{
+  try{ new GLTFLoader().parse(data,'',g=>res(g.scene),rej); }
+  catch(e){ rej(e); }
+});
+
+async function loadModelFile(file){
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  ImpProgress.show();
+  const buf=await readFileBuffer(file,(l,t)=>{
+    const pct=t>0?(l/t*80):80;
+    ImpProgress.set(pct,'📥 读取文件… '+Math.round(l/t*100)+'%（'+fmtMB(l)+' / '+fmtMB(t)+'）');
+  });
+  const needText=(ext==='obj'||ext==='gltf'||ext==='dae');
+  const text=needText?new TextDecoder('utf-8').decode(buf):null;
+  ImpProgress.set(82,'🔍 解析模型格式…');
+  await nextFrame();
+  let root=null;
+  if(ext==='glb'||ext==='gltf'){
+    root=await parseGLTF(needText?text:buf);
+  }else if(ext==='obj'){
+    root=new OBJLoader().parse(text);
+  }else if(ext==='stl'){
+    root=new THREE.Mesh(new STLLoader().parse(buf),
+      new THREE.MeshStandardMaterial({color:0x999999,metalness:.5,roughness:.4,transparent:true}));
+  }else if(ext==='fbx'){
+    root=new FBXLoader().parse(buf,'');
+  }else if(ext==='dae'){
+    root=new ColladaLoader().parse(text).scene;
+  }else if(ext==='ply'){
+    const geo=new PLYLoader().parse(buf);
+    geo.computeVertexNormals();
+    if(!geo.index&&geo.attributes.position&&geo.attributes.position.count%3!==0){
+      root=new THREE.Points(geo,new THREE.PointsMaterial({color:0x9fd8ff,size:.02}));
+    }else{
+      root=new THREE.Mesh(geo,
+        new THREE.MeshStandardMaterial({color:0x999999,metalness:.3,roughness:.6,transparent:true}));
+    }
+  }else if(ext==='3ds'){
+    root=new TDSLoader().parse(buf);
+  }else if(ext==='3mf'){
+    root=new ThreeMFLoader().parse(buf);
+  }else{
+    ImpProgress.hide();
+    throw new Error('不支持的格式 .'+ext+' — 支持 '+FORMAT_TIP+'（STEP/IGES/3DM 等 CAD 格式请先导出为 glTF/OBJ/STL）');
+  }
+  if(!root){ ImpProgress.hide(); throw new Error('文件解析结果为空'); }
+  root.updateMatrixWorld(true);
+  const meshes=[]; root.traverse(o=>{if(o.isMesh)meshes.push(o);});
+  if(!meshes.length){ ImpProgress.hide(); throw new Error('文件中没有网格'); }
+  await Importer.begin(root, meshes, file.name);
+}
+async function loadFileSafe(f){
+  try{ await loadModelFile(f); }
+  catch(err){ console.error(err); ImpProgress.hide(); UI.toast('加载失败: '+err.message); }
+}
+$('btnImport').onclick=()=>$('impFilePicker').click();
+$('impFilePicker').onchange=e=>{
+  const f=e.target.files[0];
+  e.target.value='';
+  if(f) loadFileSafe(f);
+};
 viewport.addEventListener('dragover',e=>{e.preventDefault();viewport.classList.add('dragover');});
 viewport.addEventListener('dragleave',()=>viewport.classList.remove('dragover'));
-viewport.addEventListener('drop',async e=>{
+viewport.addEventListener('drop',e=>{
   e.preventDefault(); viewport.classList.remove('dragover');
   const file=e.dataTransfer.files[0]; if(!file)return;
-  const ext=file.name.split('.').pop().toLowerCase();
-  try{
-    let root;
-    if(ext==='glb'||ext==='gltf'){
-      root=(await new GLTFLoader().loadAsync(URL.createObjectURL(file))).scene;
-    }else if(ext==='obj'){
-      root=new OBJLoader().parse(await file.text());
-    }else if(ext==='stl'){
-      root=new THREE.Mesh(new STLLoader().parse(await file.arrayBuffer()),
-        new THREE.MeshStandardMaterial({color:0x999999,metalness:.5,roughness:.4,transparent:true}));
-    }else{UI.toast('不支持的格式: '+ext);return;}
-    root.updateMatrixWorld(true);
-    const meshes=[]; root.traverse(o=>{if(o.isMesh)meshes.push(o);});
-    if(!meshes.length){UI.toast('文件中没有网格');return;}
-    Importer.begin(root, meshes, file.name);
-  }catch(err){ console.error(err); UI.toast('加载失败: '+err.message); }
+  loadFileSafe(file);
 });
 
 /* ==================== 几何序列化 ==================== */
@@ -4361,25 +4899,196 @@ const Exporter={
     document.getElementById('expShadow').checked=ground.visible;
     document.getElementById('exportModal').style.display='flex';
   },
+
   async startVideoExport(){
     if(State.recording) return;
-    if(typeof MediaRecorder==='undefined'){UI.toast('当前浏览器不支持 MediaRecorder');return;}
-    const bar=document.getElementById('exportProgressBar');
-    const msg=document.getElementById('exportMsg');
-    const startBtn=document.getElementById('expStartBtn');
-    const fh=await pickSavePath('explode-animation.webm',
-      [{description:'WebM 视频',accept:{'video/webm':['.webm']}}]);
-    if(fh===false){ UI.toast('已取消导出'); return; }
-    if(fh===null) UI.toast('当前浏览器不支持选择路径，将使用默认下载');
-    const [w,h]=document.getElementById('expRes').value.split('x').map(Number);
-    const fps=+document.getElementById('expFps').value;
-    const q=(+document.getElementById('expQ').value||12)*1e6;
-    const withShadow=document.getElementById('expShadow').checked;
+    const encSel=($('expEnc')&&$('expEnc').value)||'auto';
+    let useH264=(encSel!=='webm')&&(typeof VideoEncoder!=='undefined');
+    if(!useH264&&encSel!=='webm'&&typeof VideoEncoder==='undefined'){
+      UI.toast('当前浏览器不支持 WebCodecs — 使用 WebM 回退');
+    }
+    const [w,h]=$('expRes').value.split('x').map(Number);
+    const fps=+$('expFps').value;
+    const bps=Math.round((+$('expQ').value||16)*1e6);
+    const withShadow=$('expShadow').checked;
     let bg=State.bg;
-    const ov=document.getElementById('expBg').value;
+    const ov=$('expBg').value;
     if(ov==='white')bg={type:'solid',v:'#ffffff'};
     else if(ov==='black')bg={type:'solid',v:'#000000'};
-    else if(ov==='custom')bg={type:'solid',v:document.getElementById('expBgColor').value};
+    else if(ov==='custom')bg={type:'solid',v:$('expBgColor').value};
+    const ext=useH264?'mp4':'webm';
+    const fh=await pickSavePath('explode-animation.'+ext,
+      [{description:'视频文件',accept:{'video/mp4':['.mp4'],'video/webm':['.webm']}}]);
+    if(fh===false){ UI.toast('已取消导出'); return; }
+    if(fh===null) UI.toast('当前浏览器不支持选择路径，将使用默认下载');
+    if(useH264){
+      let MUX=null;
+      try{ MUX=await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/+esm'); }
+      catch(e){ console.warn('mp4-muxer 加载失败，回退 WebM',e); }
+      if(MUX){
+        try{
+          await this._runWebCodecs({MUX,w,h,fps,bps,withShadow,bg,fh});
+          return;
+        }catch(err){
+          console.error(err);
+          $('exportMsg').textContent='H.264 导出失败: '+err.message+' — 请重试或改选 WebM';
+          $('expStartBtn').disabled=false;
+          return;
+        }
+      }
+    }
+    await this._runWebM({w,h,fps,bps,withShadow,bg,fh});
+  },
+
+  _snapshotExportEnv(){
+    const oldSize=new THREE.Vector2(); renderer.getSize(oldSize);
+    return {
+      size:oldSize, aspect:camera.aspect,
+      up:camera.up.clone(), quat:camera.quaternion.clone(),
+      grid:grid.visible, ground:ground.visible,
+      handles:Particles.systems.map(s=>s.handleGroup?s.handleGroup.visible:false),
+      spin:{...Spin.ang},
+      prev:new Map(Liquid.prev),
+      h:Liquid.h?Liquid.h.slice():null,
+      v:Liquid.v?Liquid.v.slice():null,
+      pr:renderer.getPixelRatio()
+    };
+  },
+  _restoreExportEnv(env){
+    renderer.setPixelRatio(env.pr);
+    renderer.setSize(env.size.x,env.size.y);
+    camera.aspect=env.aspect; camera.updateProjectionMatrix();
+    camera.up.copy(env.up); camera.quaternion.copy(env.quat);
+    grid.visible=env.grid; ground.visible=env.ground;
+    Particles.systems.forEach((s,i)=>{ if(s.handleGroup)s.handleGroup.visible=env.handles[i]; });
+    applyBackground(); syncGizmo(); updateSelectionVisual(); updateToolbar(); SafeFrame.update();
+    Spin.ang=env.spin;
+    Liquid.prev=env.prev;
+    if(env.h)Liquid.h.set(env.h);
+    if(env.v)Liquid.v.set(env.v);
+    State.time=0; resize(); sync();
+  },
+  _prepareSceneForExport(withShadow){
+    State.recording=true; State.playing=false;
+    $('btnPlay').textContent='▶ 播放';
+    $('recIndicator').style.display='block';
+    $('exportProgress').style.display='block';
+    $('exportProgressBar').style.width='0%';
+    $('exportMsg').textContent='';
+    $('expStartBtn').disabled=true;
+    $('expCancelExportBtn').style.display='inline-block';
+    State.exportCancel=false;
+    State.time=0;
+    tCtrl.detach();
+    grid.visible=false;
+    ground.visible=withShadow;
+    Particles.systems.forEach(s=>{ if(s.handleGroup)s.handleGroup.visible=false; });
+    selHelpers.forEach(hh=>hh.visible=false);
+    State.parts.forEach(p=>{ if(p.mesh.material.emissive)p.mesh.material.emissive.setHex(0); });
+    SafeFrame.update();
+  },
+  _renderExportFrame(ctx,w,h,bg){
+    renderer.setPixelRatio(1);
+    renderer.setSize(w,h,false);
+    camera.aspect=w/h; camera.updateProjectionMatrix();
+    scene.background=null;
+    renderer.render(scene,camera);
+    paintBg(ctx,w,h,bg);
+    ctx.drawImage(renderer.domElement,0,0,w,h);
+    drawBom2D(ctx,w,h);
+  },
+
+  async _runWebCodecs({MUX,w,h,fps,bps,withShadow,bg,fh}){
+    const bar=$('exportProgressBar'), msg=$('exportMsg'), startBtn=$('expStartBtn');
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    const ctx=cv.getContext('2d');
+    const candidates=['avc1.640034','avc1.640028','avc1.4D0032','avc1.42E01E'];
+    let codec=null;
+    for(const c of candidates){
+      try{
+        const s=await VideoEncoder.isConfigSupported(
+          {codec:c,width:w,height:h,bitrate:bps,framerate:fps});
+        if(s.supported){ codec=c; break; }
+      }catch(e){}
+    }
+    if(!codec) throw new Error('无可用 H.264 编码配置');
+    const muxer=new MUX.Muxer({
+      target:new MUX.ArrayBufferTarget(),
+      video:{codec:'avc',width:w,height:h},
+      fastStart:'in-memory'
+    });
+    let encErr=null;
+    const encoder=new VideoEncoder({
+      output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta),
+      error:e=>{encErr=e;console.error(e);}
+    });
+    encoder.configure({codec,width:w,height:h,bitrate:bps,framerate:fps});
+    const env=this._snapshotExportEnv();
+    this._prepareSceneForExport(withShadow);
+    const total=Math.round(State.duration*fps);
+    const tus=Math.round(1e6/fps);
+    const finish=()=>{
+      State.recording=false;
+      $('recIndicator').style.display='none';
+      $('expCancelExportBtn').style.display='none';
+      try{encoder.close();}catch(_){}
+      this._restoreExportEnv(env);
+    };
+    try{
+      msg.textContent='编码中… 0 / '+total+' 帧（H.264 MP4）';
+      for(let frame=0;frame<total;frame++){
+        if(State.exportCancel) break;
+        if(encErr) throw encErr;
+        State.time=Math.min(State.duration,frame/fps);
+        Spin.tick(1/fps);
+        TL.updatePlayhead();
+        applyExplode();
+        Particles.update(State.time);
+        Section.apply(State.time);
+        Liquid.update(1/fps);
+        if(State.camAnim&&State.camKeys.length) applyCameraAnim();
+        this._renderExportFrame(ctx,w,h,bg);
+        const vf=new VideoFrame(cv,{timestamp:frame*tus,duration:tus});
+        encoder.encode(vf,{keyFrame:frame%(fps*2)===0});
+        vf.close();
+        while(encoder.encodeQueueSize>6&&!State.exportCancel){
+          await new Promise(r=>setTimeout(r,5));
+        }
+        if(frame%3===0||frame===total-1){
+          bar.style.width=(frame/Math.max(1,total-1)*100).toFixed(1)+'%';
+          msg.textContent='编码中… '+(frame+1)+' / '+total+' 帧（H.264 MP4）';
+          await new Promise(r=>setTimeout(r,0));
+        }
+      }
+      if(State.exportCancel){
+        finish();
+        msg.textContent='已取消导出';
+        startBtn.disabled=false;
+        return;
+      }
+      await encoder.flush();
+      muxer.finalize();
+      const blob=new Blob([muxer.target.buffer],{type:'video/mp4'});
+      finish();
+      bar.style.width='100%';
+      if(fh){
+        await writeToHandle(fh,blob);
+        msg.textContent='✓ 已保存 MP4（'+(blob.size/1e6).toFixed(1)+'MB · '+codec+' · 帧精确）';
+      }else{
+        fallbackDownload(blob,'explode-animation.mp4');
+        msg.textContent='✓ 导出完成 MP4（'+(blob.size/1e6).toFixed(1)+'MB · '+codec+' · 帧精确）';
+      }
+      startBtn.disabled=false;
+      setTimeout(()=>{$('exportModal').style.display='none';msg.textContent='';},4000);
+    }catch(err){
+      finish();
+      throw err;
+    }
+  },
+
+  async _runWebM({w,h,fps,bps,withShadow,bg,fh}){
+    if(typeof MediaRecorder==='undefined'){UI.toast('当前浏览器不支持 MediaRecorder');return;}
+    const bar=$('exportProgressBar'), msg=$('exportMsg'), startBtn=$('expStartBtn');
     const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
     const ctx=cv.getContext('2d');
     let stream,vTrack=null;
@@ -4390,105 +5099,64 @@ const Exporter={
     const mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
       .find(m=>MediaRecorder.isTypeSupported(m))||'';
     let rec;
-    try{ rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:q}:{videoBitsPerSecond:q}); }
+    try{ rec=new MediaRecorder(stream,mime?{mimeType:mime,videoBitsPerSecond:bps}:{videoBitsPerSecond:bps}); }
     catch(err){ UI.toast('录制器创建失败: '+err.message); return; }
     const chunks=[];
     rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
-    rec.onstop=async()=>{
-      try{
-        const blob=new Blob(chunks,{type:'video/webm'});
-        if(fh){
-          await writeToHandle(fh,blob);
-          msg.textContent='✓ 已保存到所选位置 ('+(blob.size/1e6).toFixed(1)+'MB)';
-        }else{
-          fallbackDownload(blob,'explode-animation.webm');
-          msg.textContent='✓ 导出完成 ('+(blob.size/1e6).toFixed(1)+'MB WebM)';
-        }
-      }catch(e){ msg.textContent='保存出错: '+e.message; }
-      startBtn.disabled=false;
-      setTimeout(()=>{document.getElementById('exportModal').style.display='none';msg.textContent='';},3000);
-    };
-    const oldSize=new THREE.Vector2(); renderer.getSize(oldSize);
-    const oldAspect=camera.aspect;
-    const oldUp=camera.up.clone();
-    const oldQuat=camera.quaternion.clone();
-    const gridWas=grid.visible;
-    const shadowWas=ground.visible;
-    const handlesVis=Particles.systems.map(s=>s.handleGroup?s.handleGroup.visible:false);
-    const spinAngSave={...Spin.ang};
-    const prevSave=new Map(Liquid.prev);
-    const hSave=Liquid.h?Liquid.h.slice():null;
-    const vSave=Liquid.v?Liquid.v.slice():null;
-    State.recording=true; State.playing=false;
-    document.getElementById('btnPlay').textContent='▶ 播放';
-    document.getElementById('recIndicator').style.display='block';
-    document.getElementById('exportProgress').style.display='block';
-    bar.style.width='0%'; msg.textContent='渲染中…'; startBtn.disabled=true;
-    State.time=0;
-    tCtrl.detach();
-    grid.visible=false;
-    ground.visible=withShadow;
-    Particles.systems.forEach(s=>{ if(s.handleGroup)s.handleGroup.visible=false; });
-    selHelpers.forEach(hh=>hh.visible=false);
-    State.parts.forEach(p=>{ if(p.mesh.material.emissive)p.mesh.material.emissive.setHex(0); });
-    SafeFrame.update();
+    const env=this._snapshotExportEnv();
+    this._prepareSceneForExport(withShadow);
     const total=Math.round(State.duration*fps);
-    let frame=0;
-    const restore=()=>{
+    const t0=performance.now();
+    const done=new Promise(res=>{ rec.onstop=res; });
+    const finish=()=>{
       State.recording=false;
-      renderer.setSize(oldSize.x,oldSize.y);
-      camera.aspect=oldAspect; camera.updateProjectionMatrix();
-      camera.up.copy(oldUp);
-      camera.quaternion.copy(oldQuat);
-      document.getElementById('recIndicator').style.display='none';
-      grid.visible=gridWas;
-      ground.visible=shadowWas;
-      Particles.systems.forEach((s,i)=>{ if(s.handleGroup)s.handleGroup.visible=handlesVis[i]; });
-      applyBackground();
-      syncGizmo();
-      updateSelectionVisual();
-      updateToolbar();
-      SafeFrame.update();
-      Spin.ang=spinAngSave;
-      Liquid.prev=prevSave;
-      if(hSave)Liquid.h.set(hSave);
-      if(vSave)Liquid.v.set(vSave);
-      State.time=0; resize(); sync();
+      $('recIndicator').style.display='none';
+      $('expCancelExportBtn').style.display='none';
+      this._restoreExportEnv(env);
     };
-    try{ rec.start(); }catch(e){ restore(); UI.toast('录制启动失败'); return; }
-    const step=()=>{
-      try{
-        if(frame>total){ rec.stop(); restore(); return; }
-        State.time=Math.min(State.duration,frame/fps);
-        Spin.tick(1/fps);
-        TL.updatePlayhead();
-        applyExplode();
-        Particles.update(State.time);
-        Section.apply(State.time);
-        Liquid.update(1/fps);
-        if(State.camAnim&&State.camKeys.length) applyCameraAnim();
-        renderer.setSize(w,h,false);
-        camera.aspect=w/h; camera.updateProjectionMatrix();
-        scene.background=null;
-        renderer.render(scene,camera);
-        paintBg(ctx,w,h,bg);
-        ctx.drawImage(renderer.domElement,0,0,w,h);
-        drawBom2D(ctx,w,h);
-        if(vTrack) vTrack.requestFrame();
-        bar.style.width=(frame/total*100).toFixed(1)+'%';
-        msg.textContent='渲染中… '+frame+' / '+total+' 帧';
-        frame++;
-        setTimeout(step,1000/fps);
-      }catch(err){
-        console.error(err);
-        try{rec.stop();}catch(_){}
-        restore();
-        msg.textContent='导出中断: '+err.message;
-        startBtn.disabled=false;
-      }
-    };
-    step();
+    rec.start();
+    for(let frame=0;frame<total;frame++){
+      if(State.exportCancel) break;
+      State.time=Math.min(State.duration,frame/fps);
+      Spin.tick(1/fps);
+      TL.updatePlayhead();
+      applyExplode();
+      Particles.update(State.time);
+      Section.apply(State.time);
+      Liquid.update(1/fps);
+      if(State.camAnim&&State.camKeys.length) applyCameraAnim();
+      this._renderExportFrame(ctx,w,h,bg);
+      if(vTrack) vTrack.requestFrame();
+      bar.style.width=(frame/Math.max(1,total-1)*100).toFixed(1)+'%';
+      msg.textContent='录制中… '+(frame+1)+' / '+total+' 帧（WebM）';
+      const target=t0+(frame+1)*1000/fps;
+      const wait=Math.max(0,target-performance.now());
+      await new Promise(r=>setTimeout(r,wait));
+    }
+    if(State.exportCancel){
+      try{rec.stop();}catch(_){}
+      await done; finish();
+      msg.textContent='已取消导出';
+      startBtn.disabled=false;
+      return;
+    }
+    await new Promise(r=>setTimeout(r,120));
+    rec.stop();
+    await done;
+    finish();
+    const blob=new Blob(chunks,{type:'video/webm'});
+    bar.style.width='100%';
+    if(fh){
+      try{ await writeToHandle(fh,blob); msg.textContent='✓ 已保存 WebM（'+(blob.size/1e6).toFixed(1)+'MB）'; }
+      catch(e){ msg.textContent='保存出错: '+e.message; }
+    }else{
+      fallbackDownload(blob,'explode-animation.webm');
+      msg.textContent='✓ 导出完成 WebM（'+(blob.size/1e6).toFixed(1)+'MB）';
+    }
+    startBtn.disabled=false;
+    setTimeout(()=>{$('exportModal').style.display='none';msg.textContent='';},3000);
   },
+
   async fetchEngineSources(){
     const CDNS=[
       'https://cdn.jsdelivr.net/npm/three@0.160.0',
@@ -4536,12 +5204,11 @@ const Exporter={
     const data=Exporter.serialize();
     const safeJson=JSON.stringify(data).replace(/</g,'\\u003c');
     const bgIsGrad=data.bg.type!=='solid';
-    /* ---------- 粒子运行时代码（ES5） ---------- */
     const ptList=data.particles&&data.particles.systems?data.particles.systems.filter(s=>s.on):[];
     const webSys=ptList.map(s=>{
       const cfg={...s.cfg};
       delete cfg.attach;
-      const c=new THREE.Color(cfg.color);
+      const c=new THREE.Color(cfg.colorStart||cfg.color||'#4adfff');
       cfg.cr=c.r; cfg.cg=c.g; cfg.cb=c.b;
       let handles=null;
       if(s.handles&&s.handles.length){
@@ -4553,7 +5220,9 @@ const Exporter={
       }
       return {cfg,handles};
     });
-    const ptCode=webSys.length?(
+    const hasPath=webSys.some(s=>(s.cfg.mode||'path')==='path');
+    const hasEmit=webSys.some(s=>s.cfg.mode==='emit');
+    const ptInit=webSys.length?(
       'var SYSDATA='+JSON.stringify(webSys)+';\n'
       +'function mkPts(S){var c=new THREE.Vector3(0,1.5,0);var pts=[];\n'
       +' if(S.cfg.pathType==="custom"&&S.handles){return S.handles.map(function(h){return new THREE.Vector3(h.p[0],h.p[1],h.p[2]);});}\n'
@@ -4564,23 +5233,39 @@ const Exporter={
       +' return pts;}\n'
       +'var PSYS=[];\n'
       +'SYSDATA.forEach(function(S){\n'
-      +' var curve=new THREE.CatmullRomCurve3(mkPts(S));\n'
       +' var geo=new THREE.BufferGeometry();\n'
       +' var pos=new Float32Array(3000*3),sz=new Float32Array(3000),al=new Float32Array(3000),col=new Float32Array(3000*3);\n'
       +' geo.setAttribute("position",new THREE.BufferAttribute(pos,3));\n'
       +' geo.setAttribute("aSize",new THREE.BufferAttribute(sz,1));\n'
       +' geo.setAttribute("aAlpha",new THREE.BufferAttribute(al,1));\n'
       +' geo.setAttribute("aColor",new THREE.BufferAttribute(col,3));\n'
-      +' var mat=new THREE.ShaderMaterial({transparent:true,depthWrite:!!S.cfg.solid,\n'
+      +' var add=(S.cfg.blend||"add")!=="normal";\n'
+      +' var mat=new THREE.ShaderMaterial({transparent:true,blending:add?THREE.AdditiveBlending:THREE.NormalBlending,depthWrite:add?false:!!S.cfg.solid,\n'
       +'  vertexShader:"attribute float aSize;attribute float aAlpha;attribute vec3 aColor;varying float vA;varying vec3 vC;void main(){vA=aAlpha;vC=aColor;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=aSize*(500.0/max(0.1,-mv.z));gl_Position=projectionMatrix*mv;}",\n'
       +'  fragmentShader:"varying float vA;varying vec3 vC;void main(){float d=length(gl_PointCoord-vec2(0.5));if(d>0.5)discard;gl_FragColor=vec4(vC,smoothstep(0.5,0.08,d)*vA);}"});\n'
       +' var pts=new THREE.Points(geo,mat);pts.frustumCulled=false;scene.add(pts);\n'
+      +' var lines=null,lgeo=null,lpos=null,lcol=null,lalp=null;\n'
+      +' if(S.cfg.render==="streak"){\n'
+      +'  lgeo=new THREE.BufferGeometry();\n'
+      +'  lpos=new Float32Array(3000*2*3);lcol=new Float32Array(3000*2*3);lalp=new Float32Array(3000*2);\n'
+      +'  lgeo.setAttribute("position",new THREE.BufferAttribute(lpos,3));\n'
+      +'  lgeo.setAttribute("aColor",new THREE.BufferAttribute(lcol,3));\n'
+      +'  lgeo.setAttribute("aAlpha",new THREE.BufferAttribute(lalp,1));\n'
+      +'  var lmat=new THREE.ShaderMaterial({transparent:true,blending:add?THREE.AdditiveBlending:THREE.NormalBlending,depthWrite:add?false:!!S.cfg.solid,\n'
+      +'   vertexShader:"attribute float aAlpha;attribute vec3 aColor;varying float vA;varying vec3 vC;void main(){vA=aAlpha;vC=aColor;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",\n'
+      +'   fragmentShader:"varying float vA;varying vec3 vC;void main(){gl_FragColor=vec4(vC,vA);}"});\n'
+      +'  lines=new THREE.LineSegments(lgeo,lmat);lines.frustumCulled=false;scene.add(lines);}\n'
       +' var seed=new Float32Array(3000),dchk=new Float32Array(3000),jit=new Float32Array(3000*3);\n'
       +' for(var pi=0;pi<3000;pi++){seed[pi]=Math.random();dchk[pi]=Math.random();'
       +' var th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1),r=Math.pow(Math.random(),.5);'
       +' jit[pi*3]=Math.sin(ph)*Math.cos(th)*r;jit[pi*3+1]=Math.sin(ph)*Math.sin(th)*r;jit[pi*3+2]=Math.cos(ph)*r;}\n'
-      +' PSYS.push({cfg:S.cfg,handles:S.handles,curve:curve,geo:geo,pts:pts,pos:pos,sz:sz,al:al,col:col,seed:seed,dchk:dchk,jit:jit});});\n'
-      +'var _pp=new THREE.Vector3();\n'
+      +' var P={cfg:S.cfg,handles:S.handles,geo:geo,pts:pts,pos:pos,sz:sz,al:al,col:col,seed:seed,dchk:dchk,jit:jit,lines:lines,lgeo:lgeo,lpos:lpos,lcol:lcol,lalp:lalp,curve:null};\n'
+      +' if((S.cfg.mode||"path")==="path")P.curve=new THREE.CatmullRomCurve3(mkPts(S));\n'
+      +' else initEmit(P);\n'
+      +' PSYS.push(P);});\n'
+      ):'';
+    const pathCode=hasPath?(
+      'var _pp=new THREE.Vector3();\n'
       +'function hAt(S,u,out){\n'
       +' if(S.cfg.pathType==="custom"&&S.handles&&S.handles.length>=2){\n'
       +'  var n=S.handles.length,x=u*(n-1),i=Math.min(n-2,Math.floor(x)),f=x-i;\n'
@@ -4592,42 +5277,116 @@ const Exporter={
       +'  out.w=S.cfg.spreadStart+(S.cfg.spreadEnd-S.cfg.spreadStart)*u;\n'
       +'  out.r=S.cfg.cr;out.g=S.cfg.cg;out.b=S.cfg.cb;}\n'
       +' return out;}\n'
-      +'function updateParticles(t){\n'
+      +'function updatePath(S,t){\n'
       +' var HP={d:0,s:0,w:0,r:0,g:0,b:0};\n'
-      +' PSYS.forEach(function(S){\n'
-      +'  var t0=S.cfg.t0,t1=S.cfg.t1,spd=S.cfg.speed;\n'
-      +'  var c0=S.cfg.countStart,c1=S.cfg.countEnd;\n'
-      +'  var gA=S.cfg.gAlpha||1;\n'
-      +'  var SC=S.cfg.scale||1;\n'
-      +'  var cc=new THREE.Vector3(0,1.5,0);\n'
-      +'  if(t<t0||t>t1+0.8){S.pts.visible=false;return;}\n'
-      +'  S.pts.visible=true;\n'
-      +'  var grow=Math.max(0,Math.min(1,(t-t0)/Math.max(.01,(t1-t0)*.6)));\n'
-      +'  var ge=1-Math.pow(1-grow,2);\n'
-      +'  var count=Math.max(0,Math.min(3000,Math.floor(c0+(c1-c0)*ge)));\n'
-      +'  var fIn=Math.max(0,Math.min(1,(t-t0)/.3));\n'
-      +'  var fOut=t>t1?Math.max(0,Math.min(1,1-(t-t1)/.8)):1;\n'
-      +'  var GA=gA*fIn*fOut;\n'
-      +'  for(var i=0;i<3000;i++){\n'
-      +'   if(i>=count){S.al[i]=0;S.sz[i]=0;continue;}\n'
-      +'   var sd=S.seed[i];\n'
-      +'   var u=((t-t0)*spd*(0.7+sd*0.6)+sd)%1;if(u<0)u+=1;\n'
-      +'   hAt(S,u,HP);\n'
-      +'   if(S.dchk[i]>HP.d){S.al[i]=0;S.sz[i]=0;continue;}\n'
-      +'   S.curve.getPoint(u,_pp);\n'
-      +'   if(SC!==1){_pp.sub(cc).multiplyScalar(SC).add(cc);}\n'
-      +'   S.pos[i*3]=_pp.x+S.jit[i*3]*HP.w;\n'
-      +'   S.pos[i*3+1]=_pp.y+S.jit[i*3+1]*HP.w;\n'
-      +'   S.pos[i*3+2]=_pp.z+S.jit[i*3+2]*HP.w;\n'
-      +'   S.sz[i]=HP.s;\n'
-      +'   S.col[i*3]=HP.r;S.col[i*3+1]=HP.g;S.col[i*3+2]=HP.b;\n'
-      +'   S.al[i]=GA*Math.min(1,u/.12)*(1-Math.max(0,(u-.85)/.15));}\n'
-      +'  S.geo.attributes.position.needsUpdate=true;\n'
-      +'  S.geo.attributes.aSize.needsUpdate=true;\n'
-      +'  S.geo.attributes.aAlpha.needsUpdate=true;\n'
-      +'  S.geo.attributes.aColor.needsUpdate=true;});}\n'
-      ):'function updateParticles(t){}\n';
-    /* ---------- 剖面运行时代码（ES5） ---------- */
+      +' var c=S.cfg,t0=c.t0,t1=c.t1,spd=c.speed,sc=c.scale||1;\n'
+      +' var cc=new THREE.Vector3(0,1.5,0);\n'
+      +' S.pts.visible=true;if(S.lines)S.lines.visible=false;\n'
+      +' var grow=Math.max(0,Math.min(1,(t-t0)/Math.max(.01,(t1-t0)*.6)));\n'
+      +' var ge=1-Math.pow(1-grow,2);\n'
+      +' var count=Math.max(0,Math.min(3000,Math.floor((c.countStart+(c.countEnd-c.countStart)*ge))));\n'
+      +' var gA=(c.gAlpha||1)*Math.max(0,Math.min(1,(t-t0)/.3))*(t>t1?Math.max(0,Math.min(1,1-(t-t1)/.8)):1);\n'
+      +' for(var i=0;i<3000;i++){\n'
+      +'  if(i>=count){S.al[i]=0;S.sz[i]=0;continue;}\n'
+      +'  var sd=S.seed[i];\n'
+      +'  var u=((t-t0)*spd*(0.7+sd*0.6)+sd)%1;if(u<0)u+=1;\n'
+      +'  hAt(S,u,HP);\n'
+      +'  if(S.dchk[i]>HP.d){S.al[i]=0;S.sz[i]=0;continue;}\n'
+      +'  S.curve.getPoint(u,_pp);\n'
+      +'  if(sc!==1){_pp.sub(cc).multiplyScalar(sc).add(cc);}\n'
+      +'  S.pos[i*3]=_pp.x+S.jit[i*3]*HP.w;\n'
+      +'  S.pos[i*3+1]=_pp.y+S.jit[i*3+1]*HP.w;\n'
+      +'  S.pos[i*3+2]=_pp.z+S.jit[i*3+2]*HP.w;\n'
+      +'  S.sz[i]=HP.s;\n'
+      +'  S.col[i*3]=HP.r;S.col[i*3+1]=HP.g;S.col[i*3+2]=HP.b;\n'
+      +'  S.al[i]=gA*Math.min(1,u/.12)*(1-Math.max(0,(u-.85)/.15));}\n'
+      +' S.geo.attributes.position.needsUpdate=true;\n'
+      +' S.geo.attributes.aSize.needsUpdate=true;\n'
+      +' S.geo.attributes.aAlpha.needsUpdate=true;\n'
+      +' S.geo.attributes.aColor.needsUpdate=true;}\n'
+      ):'';
+    const emitCode=hasEmit?(
+      'function initEmit(P){\n'
+      +' var c=P.cfg;\n'
+      +' var N=c.burst>0?Math.min(3000,Math.round(c.burst)):Math.min(3000,Math.floor((c.rate||1)*Math.max(.01,c.t1-c.t0)));\n'
+      +' P.eN=N;P.eMaxLife=0;\n'
+      +' P.birth=new Float32Array(N);P.life=new Float32Array(N);\n'
+      +' P.p0=new Float32Array(N*3);P.v0=new Float32Array(N*3);P.ph=new Float32Array(N*3);\n'
+      +' var dir=new THREE.Vector3(+c.dirX||0,+c.dirY||0,+c.dirZ||0);\n'
+      +' if(dir.lengthSq()<1e-6)dir.set(0,1,0);\n'
+      +' dir.normalize();\n'
+      +' var ref=Math.abs(dir.y)>.99?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);\n'
+      +' var t1v=new THREE.Vector3().crossVectors(dir,ref).normalize();\n'
+      +' var t2v=new THREE.Vector3().crossVectors(dir,t1v);\n'
+      +' var cosMax=Math.cos((c.spreadAngle||0)*Math.PI/180),R=c.emSize||.5;\n'
+      +' for(var i=0;i<N;i++){\n'
+      +'  var r1=P.seed[(i*3+1)%3000],r2=P.seed[(i*3+2)%3000],r3=P.dchk[(i*5+3)%3000],r4=P.seed[(i*7+5)%3000];\n'
+      +'  P.birth[i]=c.burst>0?c.t0+i*0.004:c.t0+i/(c.rate||1);\n'
+      +'  P.life[i]=Math.max(.05,(c.lifetime||1)*(1+(r4-.5)*2*(c.lifeVar||0)));\n'
+      +'  P.eMaxLife=Math.max(P.eMaxLife,P.life[i]);\n'
+      +'  var px=0,py=0,pz=0;\n'
+      +'  if(c.emitter==="sphere"){var th=r1*Math.PI*2,ph2=Math.acos(2*r2-1),RR=R*Math.cbrt(r3);'
+      +'px=Math.sin(ph2)*Math.cos(th)*RR;py=Math.cos(ph2)*RR;pz=Math.sin(ph2)*Math.sin(th)*RR;}\n'
+      +'  else if(c.emitter==="box"){px=(r1*2-1)*R;py=(r2*2-1)*R;pz=(r3*2-1)*R;}\n'
+      +'  else if(c.emitter==="circle"){var th2=r1*Math.PI*2,RR2=R*Math.sqrt(r2),ct=Math.cos(th2),st=Math.sin(th2);'
+      +'px=t1v.x*ct*RR2+t2v.x*st*RR2;py=t1v.y*ct*RR2+t2v.y*st*RR2;pz=t1v.z*ct*RR2+t2v.z*st*RR2;}\n'
+      +'  P.p0[i*3]=px;P.p0[i*3+1]=py;P.p0[i*3+2]=pz;\n'
+      +'  var cosA=1-(1-cosMax)*r1,sinA=Math.sqrt(Math.max(0,1-cosA*cosA)),th3=r2*Math.PI*2;\n'
+      +'  var vm=(c.speed0||1)*(1+(r3-.5)*2*(c.speedVar||0));\n'
+      +'  P.v0[i*3]=(dir.x*cosA+t1v.x*sinA*Math.cos(th3)+t2v.x*sinA*Math.sin(th3))*vm;\n'
+      +'  P.v0[i*3+1]=(dir.y*cosA+t1v.y*sinA*Math.cos(th3)+t2v.y*sinA*Math.sin(th3))*vm;\n'
+      +'  P.v0[i*3+2]=(dir.z*cosA+t1v.z*sinA*Math.cos(th3)+t2v.z*sinA*Math.sin(th3))*vm;\n'
+      +'  P.ph[i*3]=r1*6.283;P.ph[i*3+1]=r2*6.283;P.ph[i*3+2]=r3*6.283;}}\n'
+      +'function updateEmit(S,t){\n'
+      +' var c=S.cfg,N=S.eN||0;\n'
+      +' var cc=new THREE.Vector3(0,1.5,0);\n'
+      +' var k=Math.max(0,c.drag||0),g=c.gravity||0;\n'
+      +' var streak=(c.render==="streak");\n'
+      +' S.pts.visible=!streak;if(S.lines)S.lines.visible=streak;\n'
+      +' var gA=(c.gAlpha||1)*Math.max(0,Math.min(1,(t-c.t0)/.3))*(t>c.t1?Math.max(0,Math.min(1,1-(t-c.t1)/.8)):1);\n'
+      +' var cA=new THREE.Color(c.colorStart||c.color),cB=new THREE.Color(c.colorEnd||c.color);\n'
+      +' var fIn=Math.max(.01,c.fadeIn||.15),fOut=Math.max(.01,c.fadeOut||.35);\n'
+      +' var szA=c.sizeStart||.5,szB=c.sizeEnd||.1,sLen=c.streakLen||.06;\n'
+      +' var tF=(c.turbFreq||1.5)*6.283,tA=c.turb||0;\n'
+      +' function posOf(age){var lin,gl,e;'
+      +' if(k>1e-4){e=Math.exp(-k*age);lin=(1-e)/k;gl=(age-lin)/k;}'
+      +' else{e=0;lin=age;gl=.5*age*age;}'
+      +' return[lin,gl,e];}\n'
+      +' for(var i=0;i<3000;i++){\n'
+      +'  var an=-1;\n'
+      +'  if(i<N&&t>=S.birth[i]){var age=t-S.birth[i];an=age/S.life[i];if(an>=1)an=-1;}\n'
+      +'  if(an<0){S.al[i]=0;S.sz[i]=0;if(streak){S.lalp[i*2]=0;S.lalp[i*2+1]=0;}continue;}\n'
+      +'  var age2=t-S.birth[i];\n'
+      +'  var P1=posOf(age2);\n'
+      +'  var ramp=k>1e-4?(1-P1[2]):Math.min(1,age2);\n'
+      +'  var A=tA*ramp,ph0=S.ph[i*3];\n'
+      +'  var X=cc.x+S.p0[i*3]+S.v0[i*3]*P1[0]+A*Math.sin(age2*tF+ph0);\n'
+      +'  var Y=cc.y+S.p0[i*3+1]+S.v0[i*3+1]*P1[0]+g*P1[1]+A*Math.sin(age2*tF*1.13+ph0+2.1);\n'
+      +'  var Z=cc.z+S.p0[i*3+2]+S.v0[i*3+2]*P1[0]+A*Math.cos(age2*tF*0.87+ph0+4.2);\n'
+      +'  var a=Math.min(1,an/fIn)*(1-Math.max(0,(an-(1-fOut))/fOut));\n'
+      +'  var cr=cA.r+(cB.r-cA.r)*an,cg=cA.g+(cB.g-cA.g)*an,cb=cA.b+(cB.b-cA.b)*an;\n'
+      +'  if(streak){\n'
+      +'   var a2=Math.max(0,age2-sLen),P2=posOf(a2),A2=tA*(k>1e-4?(1-P2[2]):1);\n'
+      +'   S.lpos[i*6]=X;S.lpos[i*6+1]=Y;S.lpos[i*6+2]=Z;\n'
+      +'   S.lpos[i*6+3]=cc.x+S.p0[i*3]+S.v0[i*3]*P2[0]+A2*Math.sin(a2*tF+ph0);\n'
+      +'   S.lpos[i*6+4]=cc.y+S.p0[i*3+1]+S.v0[i*3+1]*P2[0]+g*P2[1]+A2*Math.sin(a2*tF*1.13+ph0+2.1);\n'
+      +'   S.lpos[i*6+5]=cc.z+S.p0[i*3+2]+S.v0[i*3+2]*P2[0]+A2*Math.cos(a2*tF*0.87+ph0+4.2);\n'
+      +'   S.lcol[(i*2)*3]=cr;S.lcol[(i*2)*3+1]=cg;S.lcol[(i*2)*3+2]=cb;\n'
+      +'   S.lcol[(i*2+1)*3]=cr;S.lcol[(i*2+1)*3+1]=cg;S.lcol[(i*2+1)*3+2]=cb;\n'
+      +'   S.lalp[i*2]=gA*a;S.lalp[i*2+1]=gA*a*.35;}\n'
+      +'  else{S.pos[i*3]=X;S.pos[i*3+1]=Y;S.pos[i*3+2]=Z;\n'
+      +'   S.sz[i]=szA+(szB-szA)*an;S.al[i]=gA*a;\n'
+      +'   S.col[i*3]=cr;S.col[i*3+1]=cg;S.col[i*3+2]=cb;}}\n'
+      +' if(streak){S.lgeo.attributes.position.needsUpdate=true;'
+      +'S.lgeo.attributes.aColor.needsUpdate=true;S.lgeo.attributes.aAlpha.needsUpdate=true;}\n'
+      +' else{S.geo.attributes.position.needsUpdate=true;'
+      +'S.geo.attributes.aSize.needsUpdate=true;S.geo.attributes.aAlpha.needsUpdate=true;'
+      +'S.geo.attributes.aColor.needsUpdate=true;}}\n'
+      ):'';
+    const ptCode=ptInit+pathCode+emitCode
+      +(webSys.length
+        ?'function updateParticles(t){PSYS.forEach(function(S){if((S.cfg.mode||"path")==="emit")updateEmit(S,t);else updatePath(S,t);});}\n'
+        :'function updateParticles(t){}\n');
     const secHas=!!data.section;
     const secOn=secHas&&data.section.on;
     const secCode=secHas?(
@@ -4644,8 +5403,8 @@ const Exporter={
       +'var b=new THREE.Mesh(p.mesh.geometry,mf);b.renderOrder=1;g.add(a);g.add(b);g.visible=false;'
       +'SST.add(g);p._sg=g;});\n'
       +'var SCAP=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshStandardMaterial({color:SEC.capColor,roughness:.6,metalness:.1,'
-      +'stencilWrite:true,stencilRef:0,stencilFunc=THREE.NotEqualStencilFunc,'
-      +'stencilFail=THREE.ReplaceStencilOp,stencilZFail=THREE.ReplaceStencilOp,stencilZPass=THREE.ReplaceStencilOp}));'
+      +'stencilWrite:true,stencilRef:0,stencilFunc:THREE.NotEqualStencilFunc,'
+      +'stencilFail:THREE.ReplaceStencilOp,stencilZFail:THREE.ReplaceStencilOp,stencilZPass:THREE.ReplaceStencilOp}));'
       +'SCAP.renderOrder=2;SCAP.visible=false;scene.add(SCAP);\n'
       +(data.section.hatch
         ?'if(SEC.hatch){var HD=SEC.hatchDensity||16,HA=(SEC.hatchAngle==null?45:SEC.hatchAngle);'
@@ -4695,7 +5454,6 @@ const Exporter={
       +'if(SCAP.material.map){var rep=Math.max(1,Math.round(side/Math.max(.5,(SEC.hatchDensity||16)/8)));'
       +'SCAP.material.map.repeat.set(rep,rep);}}\n'
       ):'function applySec(t){}\n';
-    /* ---------- 💧 液体运行时代码（ES5） ---------- */
     const lqHas=data.liquid&&data.liquid.on;
     const lqCode=(
       'var LQ=DATA.liquid||null;var LQON=!!(LQ&&LQ.on);\n'
@@ -4760,7 +5518,6 @@ const Exporter={
       +'  ca.setXYZ(i3,LQBASE.r+(1-LQBASE.r)*foam,LQBASE.g+(1-LQBASE.g)*foam,LQBASE.b+(1-LQBASE.b)*foam);}\n'
       +' pa.needsUpdate=true;ca.needsUpdate=true;LQG.computeVertexNormals();}\n'
     );
-    /* ---------- ★ v6.28.9: 运行时整体 ES5（含相机up修复） ---------- */
     const RT=`
 var DATA=${safeJson};
 var ease={linear:function(t){return t},easeIn:function(t){return t*t*t},easeOut:function(t){return 1-Math.pow(1-t,3)},easeInOut:function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2},elastic:function(t){return t===0?0:t===1?1:Math.pow(2,-10*t)*Math.sin((t*10-.75)*(2*Math.PI/3))+1}};
@@ -4971,7 +5728,6 @@ function tick(){
 tick();
 addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 `;
-    /* ---------- 导出前语法自检门 ---------- */
     try{ new Function(RT); }
     catch(e){
       console.error('导出语法自检失败:',e);
@@ -5032,7 +5788,7 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
       try{
         await writeToHandle(fh,blob);
         UI.toast('Web 交互版已导出 ✓（语法自检通过 · '+webSys.length+' 套粒子'
-          +(offline?' · 离线内嵌':' · CDN')+(secHas?' · 剖面':'')+(lqHas?' · 液体':'')
+          +(hasEmit?' · 含发射模式':'')+(offline?' · 离线内嵌':' · CDN')+(secHas?' · 剖面':'')+(lqHas?' · 液体':'')
           +(Spin.active()?' · 整体旋转':'')+'）→ 已保存到所选位置');
       }catch(e){ UI.toast('保存失败: '+e.message); }
     }else{
@@ -5043,11 +5799,12 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
   },
   serialize(){
     return {
-      version:28.9, duration:State.duration, explodeAmount:State.explodeAmount,
+      version:28.15, duration:State.duration, explodeAmount:State.explodeAmount,
       explodeMode:State.explodeMode, mixRatio:State.mixRatio,
       assemblySpin:State.assemblySpin||{x:0,y:0,z:0},
       spinAngle:Spin.ang,
       viewMarks:State.viewMarks, matPresets:State.matPresets,
+      groups:State.groups.map(g=>({name:g.name,parts:[...g.parts]})),
       camKeys:State.camKeys, bomKeys:State.bomKeys, bg:State.bg,
       section:State.section, sectionKeys:State.sectionKeys,
       liquid:JSON.parse(JSON.stringify(Liquid.cfg)),
@@ -5076,7 +5833,7 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
       try{
         await writeToHandle(fh,blob);
         setDirty(false);
-        UI.toast('项目已保存到所选位置 ✓（含 '+State.viewMarks.length+' 书签 / '+State.matPresets.length+' 材质预设）');
+        UI.toast('项目已保存到所选位置 ✓（含 '+State.groups.length+' 组 / '+State.viewMarks.length+' 书签 / '+State.matPresets.length+' 材质预设）');
       }catch(e){ UI.toast('保存失败: '+e.message); }
     }else{
       fallbackDownload(blob,'project.espx');
@@ -5100,6 +5857,7 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
       State.matPresets=Array.isArray(d.matPresets)?d.matPresets:[];
       MatEdit.rebuildLib();
       State.sel=[]; State.selectedKey=null; State.sectionSel=false;
+      State.groups=(d.groups||[]).map(g=>({name:g.name||'组',parts:(g.parts||[]).filter(i=>i<(d.parts||[]).length)}));
       document.getElementById('durInput').value=State.duration;
       document.getElementById('explodeAmt').value=State.explodeAmount;
       document.getElementById('explodeVal').textContent=State.explodeAmount+'%';
@@ -5154,7 +5912,7 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
       History.clear();
       State._initFull=captureInit();
       setDirty(false);
-      UI.toast('项目已加载 ✓（'+State.parts.length+' 零件 / '+Particles.systems.length+' 套粒子'
+      UI.toast('项目已加载 ✓（'+State.parts.length+' 零件 / '+State.groups.length+' 组 / '+Particles.systems.length+' 套粒子'
         +(State.section.on?' / 剖面开':'')+(Liquid.cfg.on?' / 液体开':'')+'）— 按 F 聚焦');
     }catch(e){ console.error(e); UI.toast('项目加载失败: '+e.message); }
   }
@@ -5181,9 +5939,7 @@ $('btnWave').onclick   =()=>UI.autoKeyframes('wave');
 $('btnSeq').onclick    =()=>UI.autoKeyframes('sequence');
 $('btnAsm').onclick    =()=>UI.autoKeyframes('assembly');
 $('btnAddKey').onclick =()=>UI.addKeyframe();
-/* ★ v6.28.9: 传入事件对象（支持 Shift 判断） */
 $('btnCamKey').onclick =(e)=>UI.addCamKeyframe(e);
-/* ★ v6.28.9: 清除全部相机关键帧 */
 $('btnCamClear').onclick=()=>{
   if(!State.camKeys.length){UI.toast('没有相机关键帧');return;}
   History.push('camClear');
@@ -5192,6 +5948,13 @@ $('btnCamClear').onclick=()=>{
   UI.toast('已清除全部相机关键帧（播放时不再改变视角）');
 };
 $('btnDelKey').onclick =()=>UI.deleteKeyframe();
+$('btnGroup').onclick=()=>Groups.create();
+$('btnUngroup').onclick=()=>Groups.dissolve();
+$('grpQuick').onchange=e=>{
+  const i=+e.target.value;
+  e.target.value='-1';
+  if(i>=0&&State.groups[i]) Groups.select(State.groups[i]);
+};
 $('btnVideo').onclick  =()=>Exporter.showVideoModal();
 $('btnWeb').onclick    =()=>Exporter.showWebModal();
 $('btnGizmoT').onclick =()=>setGizmoMode('translate');
@@ -5250,6 +6013,7 @@ $('btnSave').onclick   =()=>Exporter.saveProject();
 $('btnLoad').onclick   =()=>$('projFile').click();
 $('projFile').onchange =e=>Exporter.loadProject(e.target.files[0]);
 $('expCancelBtn').onclick=()=>{ if(!State.recording) $('exportModal').style.display='none'; };
+$('expCancelExportBtn').onclick=()=>{ State.exportCancel=true; };
 $('expStartBtn').onclick=()=>Exporter.startVideoExport();
 $('expRes').onchange   =()=>SafeFrame.update();
 $('mixRatio').addEventListener('pointerdown',()=>History.pushOnce('mixRatio'));
@@ -5277,7 +6041,7 @@ $('btnViewLock').onclick=()=>{
   if(State.viewLock) Orbit.tween=null;
   updateToolbar();
   UI.toast(State.viewLock
-    ?'🔒 视图已锁定 — 相机旋转/平移/缩放、视图切换、导航球暂时禁用（再点解锁）'
+    ?'🔒 视图已锁定 — 相机旋转/平移/缩放、视图切换、魔方导航器暂时禁用（再点解锁）'
     :'🔓 视图已解锁');
 };
 
@@ -5441,7 +6205,7 @@ $('matLibFile').onchange=async e=>{
   e.target.value='';
 };
 
-/* ---- 粒子面板控件 ---- */
+/* ---- ★ 粒子面板控件（v6.28.15） ---- */
 $('ptOk').onclick  =()=>PT.apply();
 $('ptOff').onclick =()=>PT.off();
 $('ptSys').onchange=e=>{
@@ -5454,13 +6218,9 @@ $('ptSys').onchange=e=>{
 $('ptSysAdd').onclick=()=>{
   History.push('ptAddSys');
   const at=State.sel.length===1?State.sel[0]:-1;
-  const s=Particles.addSystem(at>=0?{attach:at,pathType:'circle'}:null);
-  if(s){
-    PT.syncSysList(); PT.fill();
-    UI.toast(at>=0
-      ?('已添加粒子系统并附着到「'+State.parts[at].name+'」')
-      :'已添加粒子系统 '+(Particles.selSys+1)+' — 配置后点「应用并预览」');
-  }
+  const s=Particles.addSystem(at>=0?{attach:at}:null);
+  if(s){ PT.syncSysList(); PT.fill();
+    UI.toast(at>=0?('新系统发射中心附着「'+State.parts[at].name+'」'):'已添加系统 '+(Particles.selSys+1)); }
 };
 $('ptSysDel').onclick=()=>{
   if(!Particles.systems.length)return;
@@ -5469,21 +6229,47 @@ $('ptSysDel').onclick=()=>{
   PT.syncSysList(); PT.fill();
   UI.toast('已删除（剩余 '+Particles.systems.length+' 套）');
 };
-$('ptScale').oninput =e=>$('ptScaleVal').textContent=(+e.target.value).toFixed(1)+'×';
-$('ptSpd').oninput =e=>$('ptSpdVal').textContent=(+e.target.value).toFixed(1);
-$('ptGA').oninput  =e=>$('ptGAVal').textContent=e.target.value+'%';
-$('ptHAdd').onclick =()=>{
+document.querySelectorAll('input[name=ptMode]').forEach(r=>{
+  r.addEventListener('change',()=>PT._toggleMode(r.value));
+});
+$('ptPreset').onchange=e=>{
+  const k=e.target.value;
+  const sel=e.target;
+  const label=k!=='-1'?sel.options[sel.selectedIndex].text:'';
+  e.target.value='-1';
+  const s=Particles.cur();
+  if(!s||!PT_PRESETS[k])return;
+  History.push('ptPreset');
+  Object.assign(s.cfg,JSON.parse(JSON.stringify(PT_PRESETS[k])),
+    {solid:s.cfg.solid,attach:s.cfg.attach});
+  s.on=true;
+  Particles.applyCfg(s);
+  PT.fill();
+  UI.toast('✨ 已应用预设「'+label+'」— 可微调后点「应用并预览」');
+};
+$('ptDirView').onclick=()=>{
+  const f=new THREE.Vector3(); camera.getWorldDirection(f);
+  $('ptDirX').value=f.x.toFixed(1);
+  $('ptDirY').value=f.y.toFixed(1);
+  $('ptDirZ').value=f.z.toFixed(1);
+  UI.toast('👁 发射方向 = 当前视图朝向');
+};
+$('ptDirUp').onclick=()=>{ $('ptDirX').value=0;$('ptDirY').value=1;$('ptDirZ').value=0; };
+$('ptScale').oninput=e=>$('ptScaleVal').textContent=(+e.target.value).toFixed(1)+'×';
+$('ptSpd').oninput  =e=>$('ptSpdVal').textContent=(+e.target.value).toFixed(1);
+$('ptGA').oninput   =e=>$('ptGAVal').textContent=e.target.value+'%';
+['ptRate','ptBurst','ptT0','ptT1','ptLife'].forEach(id=>
+  $(id).addEventListener('change',()=>PT._cap()));
+$('ptHAdd').onclick=()=>{
   History.push('ptAddHandle');
   const s=Particles.cur(); if(!s)return;
-  Particles.addHandle(s);
-  PT.syncHN();
+  Particles.addHandle(s); PT.syncHN();
   UI.toast('已添加控制点（共 '+s.handles.length+' 个）— 双击白点打开参数面板');
 };
-$('ptHDel').onclick =()=>{
+$('ptHDel').onclick=()=>{
   History.push('ptDelHandle');
   const s=Particles.cur(); if(!s)return;
-  Particles.removeHandle(s);
-  PT.syncHN();
+  Particles.removeHandle(s); PT.syncHN();
 };
 
 /* 弹窗外空白关闭 */
@@ -5578,7 +6364,6 @@ const posFromPanel=()=>{
   UI.setPartProp('pos',[+$('ppPX').value||0, +$('ppPY').value||0, +$('ppPZ').value||0]);
 };
 ['ppPX','ppPY','ppPZ'].forEach(id=>$(id).onchange=posFromPanel);
-/* ---- 绕零件公转 + 螺旋导程 ---- */
 const orbitFromPanel=()=>{
   History.pushOnce('ppOrbit');
   const p=curPart(); if(!p)return;
@@ -5690,10 +6475,18 @@ try{
   State.parts[7].pivotSpeed=45;
   State.parts[7].pivotAxis='y';
   State.parts[7].pivotFollow=true;
-  Particles.addSystem();
+  State.groups=[{name:'螺栓组',parts:[4,5,6,7]}];
+  /* ★ 演示粒子：系统1=火花发射(线迹+物理)，系统2=流光路径 */
   Particles.addSystem({
-    t0:4,t1:9,speed:.8,scale:1.4,solid:true,
-    color:'#ffb340',pathType:'circle'});
+    mode:'emit',emitter:'point',emSize:.3,dirX:0,dirY:1,dirZ:0,spreadAngle:35,
+    speed0:3.5,speedVar:.4,rate:80,t0:1,t1:8,lifetime:1.4,lifeVar:.3,
+    gravity:-5,drag:.15,turb:.2,turbFreq:2.5,
+    sizeStart:.3,sizeEnd:.05,colorStart:'#ffd27a',colorEnd:'#ff5a2a',
+    fadeIn:.03,fadeOut:.4,blend:'add',render:'streak',streakLen:.05});
+  Particles.addSystem({
+    mode:'path',t0:4,t1:9,speed:.8,scale:1.4,solid:true,
+    pathType:'circle',render:'point',blend:'add',
+    colorStart:'#ffb340',colorEnd:'#4adfff'});
   applyMat(State.parts[8],'glass');
   State.parts[8].matKeys=[
     {t:0,rough:.8,metal:.1,op:1,ease:'easeInOut'},
@@ -5714,6 +6507,7 @@ try{
     {name:'下方仰视',theta:.9,phi:Math.PI*.82,roll:0,dist:13,target:[c.x,c.y,c.z]}
   ];
   Views.rebuild();
+  Groups.rebuildQuick();
   State._initFull=captureInit();
   History.clear();
   setDirty(false);
@@ -5729,7 +6523,7 @@ try{
   },9000);
   document.getElementById('bootErr').style.display='none';
   window.__BOOTED=true;
-  UI.toast('v6.28.9 ✓ 相机关键帧修复 — 📷点击=锁定当前视角 · Shift+点击=多帧运镜 · 📷✕=清空');
+  UI.toast('v6.28.15 ✓ ✨ 粒子发射器+物理+生命周期（试试预设：💥爆炸/⚡火花）');
 }catch(err){
   console.error(err);
   alert('启动失败: '+err.message);
