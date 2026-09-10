@@ -120,6 +120,31 @@
   .ptRow input[type=number]{width:58px}
   .ptRow input[type=range]{width:80px;vertical-align:middle}
   .ptHide{display:none!important}
+/* ========== 可拖浮窗（灯光 / 角度设置，不遮挡视口，实时预览） ========== */
+#lightModal.modal, #angModal.modal{
+  position:fixed; left:16px; top:92px; display:none;
+  align-items:flex-start; justify-content:flex-start;
+  background:transparent; padding:0; margin:0; z-index:80;
+  pointer-events:none;
+}
+#lightModal.modal .box, #angModal.modal .box{
+  pointer-events:auto;
+  width:590px; max-width:min(94vw,590px);
+  background:rgba(32,36,43,.94);
+  border:1px solid #4a7dff88; border-radius:10px;
+  box-shadow:0 10px 32px rgba(0,0,0,.45);
+  padding:6px 14px 14px;
+  max-height:min(86vh,820px); overflow-y:auto;
+}
+#angModal.modal .box{ width:480px; max-width:min(90vw,480px); }
+#lightModal .lt-drag, #angModal .lt-drag{
+  cursor:move; user-select:none; position:sticky; top:-6px; z-index:3;
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:rgba(32,36,43,.97); border-bottom:1px solid #3d4654;
+  margin:0 -14px 6px; padding:8px 14px 7px; border-radius:10px 10px 0 0;
+}
+#lightModal .lt-drag h2, #angModal .lt-drag h2{margin:0;font-size:14px;color:#8ab4ff}
+#lightModal .lt-grip, #angModal .lt-grip{font-size:10px;color:#6b7688;letter-spacing:1px;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -200,6 +225,7 @@
       <button class="btn on" id="btnSafeFrame" title="视频取景框">取景框:开</button>
       <button class="btn on" id="btnSnap" title="时间轴吸附（N）">吸附:开</button>
       <button class="btn on" id="btnAngles" title="角度参数设置（方位/俯仰/翻滚/距离精确控制）">📐 角度</button>
+      <button class="btn" id="btnLights" title="灯光设置：环境光/主光/补光/轮廓光的开关·颜色·强度·投影（随项目保存）">💡 灯光</button>
       <button class="btn" id="btnClear">清除动画</button>
     </div>
     <div class="spacer"></div>
@@ -232,6 +258,12 @@
       </select>
       <button class="btn" id="matEdit" title="打开材质编辑器（基于选中零件实时预览）">⚙ 编辑</button>
     </div>
+    <div class="grp"><span class="gl">着色</span>
+      <button class="btn" id="btnShadeSmooth" title="平滑着色：焊接共享顶点并平均法线，把 CAD/STL/OBJ 等面片模型的硬棱边显示为光滑曲面（作用于选中零件；未选中=全部）">⚪ 平滑</button>
+      <button class="btn" id="btnShadeFlat" title="硬边/平面着色：恢复棱角感（作用于选中零件；未选中=全部）">◧ 硬边</button>
+      <button class="btn" id="btnShadeAuto" title="恢复自动着色（跟随材质预设与导入原样）">↺ 自动</button>
+      <button class="btn" id="btnShadeRestore" title="恢复刚导入时的显示：还原导入几何 / 自动着色 / 导入材质与颜色（作用于选中零件；未选中=全部；仅对导入生成的零件有效）">⏪ 导入态</button>
+    </div>
     <div class="grp"><span class="gl">配色</span>
       <input type="color" id="allColor" value="#4a7dff">
       <button class="btn" id="btnApplyAll" title="统一配色">应用</button>
@@ -253,12 +285,12 @@
       </select>
     </div>
     <div class="grp"><span class="gl">项目</span>
-      <button class="btn primary" id="btnImport" title="导入 3D 模型（GLB/glTF/OBJ/STL/FBX/DAE/PLY/3DS/3MF），或直接拖入视口">📥 导入</button>
+      <button class="btn primary" id="btnImport" title="导入 3D 模型（GLB/glTF/OBJ/STL；FBX/STEP/IGES 等请先导出为 glTF/OBJ/STL），或直接拖入视口">📥 导入</button>
       <button class="btn" id="btnSave" title="保存项目（有未保存修改时显示 ● 并提醒）">💾 存</button>
       <button class="btn" id="btnLoad" title="打开项目（Shift+点击=导入材质预设库）">📂 开</button>
       <input type="file" id="projFile" accept=".espx,.json" style="display:none">
       <input type="file" id="matLibFile" accept=".matlib,.json" style="display:none">
-      <input type="file" id="impFilePicker" accept=".glb,.gltf,.obj,.stl,.fbx,.dae,.ply,.3ds,.3mf" style="display:none">
+      <input type="file" id="impFilePicker" accept=".glb,.gltf,.obj,.stl" style="display:none">
     </div>
   </div>
 </div>
@@ -279,6 +311,12 @@
         <option value="rock">岩石</option>
         <option value="glass">玻璃</option>
         <option value="custom">自定义（⚙ 编辑器参数）</option>
+      </select>
+      <label>着色 <span style="color:#567;font-size:10px">（平滑=焊接+平均法线）</span></label>
+      <select id="ppShade" title="平滑着色把面片模型显示为光滑曲面；硬边=平面着色（棱角感）；自动=跟随材质预设/导入原样">
+        <option value="auto">自动（默认）</option>
+        <option value="smooth">平滑着色（光滑曲面）</option>
+        <option value="flat">硬边（平面着色）</option>
       </select>
       <label>透明度 <span id="ppOpVal">100%</span></label><input type="range" id="ppOp" min="0" max="100" value="100">
       <label>缩放 <span id="ppScVal">100%</span></label><input type="range" id="ppSC" min="10" max="300" value="100">
@@ -452,7 +490,10 @@ F 聚焦 · ? 唤回提示</div>
 
 <div id="angModal" class="modal">
   <div class="box">
-    <h2>📐 视角角度参数</h2>
+    <div class="lt-drag" id="angDrag" title="按住此条拖动窗口；边调角度边看视口实时效果">
+      <h2>📐 视角角度参数</h2>
+      <span class="lt-grip">✥ 拖动标题移动 · 不遮挡实时预览</span>
+    </div>
     <label style="margin-top:0"><input type="checkbox" id="angShow" checked> 显示右下角角度数值（快捷键 N）</label>
     <div class="pp-row" style="margin-top:8px">
       <div><label>方位角°</label><input type="number" id="angAz" step="5"></div>
@@ -471,6 +512,79 @@ F 聚焦 · ? 唤回提示</div>
   </div>
 </div>
 
+<div id="lightModal" class="modal">
+  <div class="box">
+    <div class="lt-drag" id="ltDrag" title="按住此条拖动窗口；窗口不遮挡视口，可边调边看实时灯光效果">
+      <h2>💡 灯光 <span style="font-size:11px;color:#567">随项目保存 · 导出视频/Web 生效</span></h2>
+      <span class="lt-grip">✥ 拖动标题移动 · 不遮挡实时预览</span>
+    </div>
+    <div class="ptRow" style="flex-wrap:wrap;gap:4px;margin:6px 0 2px">
+      <span style="color:#8ab4ff;font-size:11px;letter-spacing:1px">一键氛围</span>
+      <button class="btn mini" id="ltSceneStudio" title="影棚三灯（默认均衡）">影棚</button>
+      <button class="btn mini" id="ltSceneProduct" title="产品白光 · 净白拍摄">白光</button>
+      <button class="btn mini" id="ltSceneWarm" title="暖光氛围">暖光</button>
+      <button class="btn mini" id="ltSceneCool" title="冷光科技">冷光</button>
+      <button class="btn mini" id="ltSceneDark" title="暗场戏剧">暗场</button>
+      <button class="btn mini" id="ltSceneShadowless" title="无影 · 环境匀亮（适合看细节）">无影</button>
+    </div>
+    <div class="ptSec" style="border-top:0;margin-top:0">环境光 Hemisphere —— 整体氛围基底（无方向 / 无阴影）</div>
+    <div class="pp-row" style="align-items:center;margin:6px 0">
+      <label style="margin:0;flex:0;white-space:nowrap"><input type="checkbox" id="ltHemOn" checked> 开</label>
+      <div style="flex:1"><label style="margin:0">天空色</label><input type="color" id="ltHemC1" value="#dde6ff" style="width:100%;height:26px"></div>
+      <div style="flex:1"><label style="margin:0">地面色</label><input type="color" id="ltHemC2" value="#30281e" style="width:100%;height:26px"></div>
+    </div>
+    <div class="ptRow"><label>强度</label>
+      <input type="range" id="ltHemInt" min="0" max="2" step="0.05" value="0.7" style="flex:1"><span id="ltHemIntV" style="min-width:34px;text-align:right">0.7</span></div>
+    <div class="ptSec">方向光 Directional —— 主光带投影（阴影由主光产生）</div>
+    <div class="ptRow" style="flex-wrap:wrap">
+      <label style="margin:0;white-space:nowrap"><input type="checkbox" id="ltKeyOn" checked> 主光（上右前）</label>
+      <label style="margin:0"><input type="checkbox" id="ltKeySh" checked> 投影</label>
+      <span style="color:#9aa4b4">颜色</span><input type="color" id="ltKeyCol" value="#ffffff" style="width:44px;height:26px">
+      <label>强度</label><input type="range" id="ltKeyInt" min="0" max="4" step="0.05" value="1.6" style="width:150px"><span id="ltKeyIntV" style="min-width:34px;text-align:right">1.6</span>
+    </div>
+    <div class="ptRow" style="flex-wrap:wrap">
+      <span style="color:#9aa4b4;min-width:52px">方向</span>
+      <label>方位°</label><input type="range" id="ltKeyAz" min="-180" max="180" step="1" value="45" style="width:128px"><span id="ltKeyAzV" style="min-width:28px;text-align:right">45</span>
+      <label>俯仰°</label><input type="range" id="ltKeyEl" min="-90" max="90" step="1" value="50" style="width:128px"><span id="ltKeyElV" style="min-width:28px;text-align:right">50</span>
+      <span style="flex:1"></span><span style="font-size:10px;color:#677">绕场景中心转动（阴影随主光方向）</span>
+    </div>
+    <div class="ptRow" style="flex-wrap:wrap">
+      <label style="margin:0;white-space:nowrap"><input type="checkbox" id="ltRimOn" checked> 补光（左上后 · 冷色）</label>
+      <span style="color:#9aa4b4">颜色</span><input type="color" id="ltRimCol" value="#88aaff" style="width:44px;height:26px">
+      <label>强度</label><input type="range" id="ltRimInt" min="0" max="2" step="0.05" value="0.5" style="width:150px"><span id="ltRimIntV" style="min-width:34px;text-align:right">0.5</span>
+    </div>
+    <div class="ptRow" style="flex-wrap:wrap">
+      <span style="color:#9aa4b4;min-width:52px">方向</span>
+      <label>方位°</label><input type="range" id="ltRimAz" min="-180" max="180" step="1" value="-143" style="width:128px"><span id="ltRimAzV" style="min-width:28px;text-align:right">-143</span>
+      <label>俯仰°</label><input type="range" id="ltRimEl" min="-90" max="90" step="1" value="22" style="width:128px"><span id="ltRimElV" style="min-width:28px;text-align:right">22</span>
+      <span style="flex:1"></span>
+    </div>
+    <div class="ptRow" style="flex-wrap:wrap">
+      <label style="margin:0;white-space:nowrap"><input type="checkbox" id="ltUnderOn" checked> 轮廓光（下后方 · 冷色）</label>
+      <span style="color:#9aa4b4">颜色</span><input type="color" id="ltUnderCol" value="#6a86c8" style="width:44px;height:26px">
+      <label>强度</label><input type="range" id="ltUnderInt" min="0" max="2" step="0.05" value="0.35" style="width:150px"><span id="ltUnderIntV" style="min-width:34px;text-align:right">0.35</span>
+    </div>
+    <div class="ptRow" style="flex-wrap:wrap">
+      <span style="color:#9aa4b4;min-width:52px">方向</span>
+      <label>方位°</label><input type="range" id="ltUnderAz" min="-180" max="180" step="1" value="-31" style="width:128px"><span id="ltUnderAzV" style="min-width:28px;text-align:right">-31</span>
+      <label>俯仰°</label><input type="range" id="ltUnderEl" min="-90" max="90" step="1" value="-54" style="width:128px"><span id="ltUnderElV" style="min-width:28px;text-align:right">-54</span>
+      <span style="flex:1"></span>
+    </div>
+    <div class="ptSec">无影灯 Ambient —— 四面八方均匀照射 · 无方向 · 无阴影（整体提亮 · 含金属件环境反射底光补偿，导入件也有效）</div>
+    <div class="ptRow" style="flex-wrap:wrap">
+      <label style="margin:0;white-space:nowrap"><input type="checkbox" id="ltAmbOn"> 无影灯</label>
+      <span style="color:#9aa4b4">颜色</span><input type="color" id="ltAmbCol" value="#ffffff" style="width:44px;height:26px">
+      <label>强度</label><input type="range" id="ltAmbInt" min="0" max="2" step="0.05" value="0.5" style="width:150px"><span id="ltAmbIntV" style="min-width:34px;text-align:right">0.5</span>
+    </div>
+    <div style="font-size:10px;color:#677;margin-top:10px;line-height:1.6">
+      💡 环境光强度调低 + 关闭补光/轮廓光 = 暗场氛围；关闭主光「投影」可省性能。改动即时预览并标记未保存；工具栏「↺ 复位」会连同初始状态一起还原灯光。
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+      <button class="btn" id="ltReset">恢复默认</button>
+      <button class="btn" id="ltClose">关闭</button>
+    </div>
+  </div>
+</div>
 <div id="curveModal" class="modal">
   <div class="box">
     <h2>曲线编辑器 <span id="curvePart" style="font-size:12px;color:#567"></span></h2>
@@ -716,7 +830,7 @@ F 聚焦 · ? 唤回提示</div>
 <div id="impModal" class="modal">
   <div class="box">
     <h2>📥 导入模型 — 选择单位</h2>
-    <div style="font-size:11px;color:#677;margin-bottom:8px">支持 GLB/glTF/OBJ/STL/FBX/DAE/PLY/3DS/3MF · OBJ/STL 等不带单位信息，按导出软件原始单位选择（已自动推荐），程序按「米」重建场景</div>
+    <div style="font-size:11px;color:#677;margin-bottom:8px">支持 GLB/glTF/OBJ/STL（离线内置引擎）；FBX/DAE/PLY/3DS/3MF/STEP/IGES 请先在 CAD / Blender / FreeCAD 中导出为以上格式 · OBJ/STL 等不带单位信息，按导出软件原始单位选择（已自动推荐），程序按「米」重建场景</div>
     <div style="font-size:13px">文件: <b id="impFile" style="color:#8ab4ff"></b></div>
     <div style="font-size:12px;color:#9aa4b4;margin-top:4px">原始包围盒: <span id="impRaw"></span></div>
     <div style="font-size:12px;color:#9aa4b4">统计: <span id="impStats"></span></div>
@@ -736,6 +850,7 @@ F 聚焦 · ? 唤回提示</div>
     <div id="impStrayRow" style="display:none;margin-top:8px;font-size:12px;color:#ffb340">
       <span id="impStrayTxt"></span></div>
     <label style="margin-top:10px"><input type="checkbox" id="impClean" checked> 清理游离几何（剔除远离主体 &gt;8× 主体半径的杂散三角面）</label>
+    <label style="margin-top:6px"><input type="checkbox" id="impKeepMat" checked> 保留模型原始着色（GLB/glTF 自带颜色与贴图材质照常显示；不勾选=按配色盘统一金属涂装。OBJ/STL 无颜色信息时仍按配色盘区分）</label>
     <div id="impLoadProgress" style="display:none;margin-top:12px">
       <div style="font-size:11px;color:#8ab4ff" id="impLoadMsg">准备读取…</div>
       <div style="height:8px;background:#1a1d23;border-radius:4px;overflow:hidden;margin-top:5px">
@@ -846,6 +961,40 @@ function fallbackDownload(blob,filename){
 }
 
 /* ==================== 全局状态 ==================== */
+/* ==================== 灯光默认（环境光/主光/补光/轮廓光） ==================== */
+const LIGHT_DEFAULTS={
+  hemi:{on:true,c1:'#dde6ff',c2:'#30281e',int:0.7},
+  key:{on:true,col:'#ffffff',int:1.6,shadow:true,az:45,el:50,dist:13.1},
+  rim:{on:true,col:'#88aaff',int:0.5,az:-143,el:22,dist:10.8},
+  under:{on:true,col:'#6a86c8',int:0.35,az:-31,el:-54,dist:9.9},
+  amb:{on:false,col:'#ffffff',int:0.5}
+};
+/* 方位角 az（绕Y，0=正后方照向原点，+X方向为正）· 俯仰角 el（0=水平，+上/-下）
+   dist=光源到原点距离。灯始终朝向场景原点照射。 */
+function lightDirPos(azDeg,elDeg,dist){
+  const az=azDeg*Math.PI/180, el=elDeg*Math.PI/180, d=+dist||10;
+  return new THREE.Vector3(
+    Math.cos(el)*Math.sin(az)*d,
+    Math.sin(el)*d,
+    Math.cos(el)*Math.cos(az)*d);
+}
+/* ---- 一键灯光氛围预设（应用到全部灯光 + 无影灯） ---- */
+const LIGHT_SCENES={
+  studio:{name:'影棚三灯',desc:'默认均衡',hemi:{on:true,c1:'#dde6ff',c2:'#30281e',int:0.7},key:{on:true,col:'#ffffff',int:1.6,shadow:true,az:45,el:50,dist:13.1},rim:{on:true,col:'#88aaff',int:0.5,az:-143,el:22,dist:10.8},under:{on:true,col:'#6a86c8',int:0.35,az:-31,el:-54,dist:9.9},amb:{on:false,col:'#ffffff',int:0.5}},
+  product:{name:'产品白光',desc:'净白拍摄',hemi:{on:true,c1:'#ffffff',c2:'#e6e9f0',int:0.55},key:{on:true,col:'#ffffff',int:2,shadow:true,az:0,el:58,dist:16},rim:{on:true,col:'#ffffff',int:0.55,az:-150,el:18,dist:14},under:{on:false,col:'#cfe0ff',int:0.25,az:0,el:-30,dist:12},amb:{on:true,col:'#f2f5ff',int:0.35}},
+  warm:{name:'暖光',desc:'暖调氛围',hemi:{on:true,c1:'#ffe6c2',c2:'#6a4426',int:0.62},key:{on:true,col:'#ffd9a8',int:1.5,shadow:true,az:55,el:52,dist:13},rim:{on:true,col:'#ffb980',int:0.45,az:-150,el:20,dist:12},under:{on:true,col:'#9a6a3a',int:0.3,az:-20,el:-55,dist:10},amb:{on:true,col:'#ffc98f',int:0.22}},
+  cool:{name:'冷光',desc:'科技冷调',hemi:{on:true,c1:'#d8ecff',c2:'#1d2b45',int:0.8},key:{on:true,col:'#eef6ff',int:1.7,shadow:true,az:30,el:60,dist:14},rim:{on:true,col:'#7ab3ff',int:0.6,az:-160,el:15,dist:12},under:{on:true,col:'#4a74c4',int:0.45,az:-15,el:-60,dist:11},amb:{on:false,col:'#ffffff',int:0.5}},
+  dark:{name:'暗场',desc:'低亮戏剧',hemi:{on:true,c1:'#2c3a52',c2:'#0b0d12',int:0.28},key:{on:true,col:'#bcd2ff',int:0.85,shadow:true,az:38,el:42,dist:14},rim:{on:false,col:'#88aaff',int:0.35,az:-120,el:25,dist:12},under:{on:false,col:'#44557a',int:0.25,az:-40,el:-55,dist:10},amb:{on:false,col:'#ffffff',int:0.5}},
+  shadowless:{name:'无影',desc:'环境匀亮·看细节',hemi:{on:true,c1:'#eef2f8',c2:'#dfe4ec',int:0.8},key:{on:true,col:'#ffffff',int:1,shadow:false,az:45,el:50,dist:13.1},rim:{on:true,col:'#ffffff',int:0.5,az:-143,el:22,dist:10.8},under:{on:true,col:'#ffffff',int:0.45,az:-31,el:-54,dist:9.9},amb:{on:true,col:'#ffffff',int:0.9}}
+};
+function lightSceneApply(key){
+  const s=LIGHT_SCENES[key]; if(!s){ UI.toast('未知灯光预设'); return; }
+  const base=JSON.parse(JSON.stringify(LIGHT_DEFAULTS));
+  ['hemi','key','rim','under','amb'].forEach(k=>{ if(s[k]) base[k]=Object.assign({},base[k],s[k]); });
+  State.lights=base;
+  lightToUI(); Lights.apply(); setDirty(true);
+  UI.toast('💡 已应用灯光氛围「'+s.name+'」'+(s.desc?' · '+s.desc:''));
+}
 const State = {
   parts: [], camKeys: [], bomKeys: [],
   sel: [], selectedKey: null,
@@ -870,6 +1019,7 @@ const State = {
   sectionSel: false,
   exportCancel: false,
   bg: {type:'solid', v:'#22262e'},
+  lights: JSON.parse(JSON.stringify(LIGHT_DEFAULTS)),
   section:{on:false,axis:'y',pos:.5,flip:false,mode:'global',
            capColor:'#e8a33d',hatch:true,ghost:false,viz:true,
            tilt:0,tilt2:0,hatchDensity:16,hatchAngle:45},
@@ -921,6 +1071,7 @@ const History={
   snapshot(){
     return JSON.stringify({
       duration:State.duration, explodeAmount:State.explodeAmount, bg:State.bg,
+      lights: JSON.parse(JSON.stringify(State.lights)),
       camKeys:State.camKeys, bomKeys:State.bomKeys,
       sel:[...State.sel],
       matPresets:State.matPresets,
@@ -936,6 +1087,7 @@ const History={
         spin:p.spin||[0,0,0],
         pivot:p.pivot??-1, pivotAxis:p.pivotAxis||'y', pivotSpeed:p.pivotSpeed||0,
         pivotFollow:p.pivotFollow!==false, screwLead:p.screwLead||0,
+        shade:p.shade||'auto',
         mat:p.mat||'metal', matParams:p.matParams||null, matKeys:p.matKeys||[],
         color:'#'+p.mesh.material.color.getHexString(),keys:p.keys}))
     });
@@ -974,6 +1126,12 @@ const History={
       if(Array.isArray(d.matPresets)){State.matPresets=d.matPresets;MatEdit.rebuildLib();}
       State.groups=(d.groups||[]).map(g=>({name:g.name||'组',parts:(g.parts||[]).filter(i=>i<State.parts.length)}));
       State.duration=d.duration; State.explodeAmount=d.explodeAmount; State.bg=d.bg;
+      if(d.lights){
+        Object.keys(LIGHT_DEFAULTS).forEach(k=>{
+          State.lights[k]=Object.assign({},LIGHT_DEFAULTS[k],d.lights[k]||{});
+        });
+      }
+      Lights.apply();
       State.camKeys=d.camKeys; State.bomKeys=d.bomKeys; State.sel=d.sel||[];
       if(d.assemblySpin){ State.assemblySpin=d.assemblySpin; syncSpinUI(); }
       if(d.section){ State.section=Object.assign({},d.section);
@@ -1001,11 +1159,14 @@ const History={
         if(sp.mat==='custom'&&sp.matParams){p.matParams=sp.matParams;applyCustom(p,sp.matParams);}
         else if(sp.mat&&sp.mat!=='metal'){applyMat(p,sp.mat);}
         else p.mat='metal';
+        p.shade=sp.shade||'auto';
+        applyPartShade(p);
       });
       if(d.bg.type==='solid'){document.getElementById('bgSel').value='solid';document.getElementById('bgColor').value=d.bg.v;}
       applyBackground();
       if(d.particles) Particles.restore(d.particles);
       State.time=0;
+      Lights.apply();
       UI.refresh(); sync(); updateHistoryBtns();
     }catch(err){
       console.error('历史还原失败:',err);
@@ -1081,12 +1242,72 @@ const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(45,1,0.1,600);
 camera.position.set(9,7,12); camera.lookAt(0,1.5,0);
 
-scene.add(new THREE.HemisphereLight(0xdde6ff,0x30281e,0.7));
+const hemiLight=new THREE.HemisphereLight(0xdde6ff,0x30281e,0.7);
+scene.add(hemiLight);
 const keyLight=new THREE.DirectionalLight(0xffffff,1.6);
 keyLight.position.set(6,10,6); keyLight.castShadow=true;
 keyLight.shadow.mapSize.set(2048,2048); scene.add(keyLight);
 const rimLight=new THREE.DirectionalLight(0x88aaff,0.5); rimLight.position.set(-6,4,-8); scene.add(rimLight);
 const underLight=new THREE.DirectionalLight(0x6a86c8,0.35); underLight.position.set(-3,-8,5); scene.add(underLight);
+/* 无影灯：AmbientLight 四面八方均匀照射，无方向、无阴影（默认关闭，由灯光面板控制） */
+const ambientFill=new THREE.AmbientLight(0xffffff,0);
+scene.add(ambientFill);
+
+/* ==================== 灯光控制（环境/主光/补光/轮廓） ==================== */
+const Lights={
+  refs:{hemi:hemiLight,key:keyLight,rim:rimLight,under:underLight,amb:ambientFill},
+  apply(){
+    const fix=(k,d)=>{ const cur=State.lights&&State.lights[k]; return Object.assign({},d,cur||{}); };
+    const H=fix('hemi',LIGHT_DEFAULTS.hemi);
+    const h=Lights.refs.hemi;
+    h.visible=!!H.on; h.color.set(H.c1); h.groundColor.set(H.c2); h.intensity=+H.int||0;
+    const K=fix('key',LIGHT_DEFAULTS.key);
+    const k=Lights.refs.key;
+    k.visible=!!K.on; k.color.set(K.col); k.intensity=+K.int||0; k.castShadow=!!K.shadow;
+    k.position.copy(lightDirPos(K.az,K.el,K.dist));
+    const R=fix('rim',LIGHT_DEFAULTS.rim);
+    const r=Lights.refs.rim;
+    r.visible=!!R.on; r.color.set(R.col); r.intensity=+R.int||0;
+    r.position.copy(lightDirPos(R.az,R.el,R.dist));
+    const U=fix('under',LIGHT_DEFAULTS.under);
+    const u=Lights.refs.under;
+    u.visible=!!U.on; u.color.set(U.col); u.intensity=+U.int||0;
+    u.position.copy(lightDirPos(U.az,U.el,U.dist));
+    const A=fix('amb',LIGHT_DEFAULTS.amb);
+    const a=Lights.refs.amb;
+    a.visible=!!A.on; a.color.set(A.col); a.intensity=+A.int||0;
+    syncAmbientEnv();
+  }
+};
+/* ---- 无影灯增强：金属件环境反射补偿（均匀底光·无方向·无阴影；关灯还原） ---- */
+function syncAmbientEnv(){
+  const amb=State.lights&&State.lights.amb;
+  const on=!!(amb&&amb.on);
+  if(!on&&!Lights._envApplied){ Lights._envApplied=true; return; }
+  const boost=on?Math.min(1.5,0.18+(+amb.int||0)*0.55):0;
+  const env=on?getEnv():null;
+  State.parts.forEach(p=>{
+    const mats=Array.isArray(p.mesh.material)?p.mesh.material:[p.mesh.material];
+    mats.forEach(m=>{
+      if(!m||!m.isMeshStandardMaterial) return;
+      if(on){
+        if(!m.userData._ambEnv){
+          m.userData._ambEnv={has:!!m.envMap, ei:m.envMapIntensity||0};
+        }
+        const o=m.userData._ambEnv;
+        if(!m.envMap){ m.envMap=env; m.needsUpdate=true; }
+        m.envMapIntensity=Math.min(2.2,(o.has?o.ei:0)+boost);
+      }else if(m.userData._ambEnv){
+        const o=m.userData._ambEnv;
+        if(!o.has&&m.envMap){ m.envMap=null; m.needsUpdate=true; }
+        m.envMapIntensity=o.ei;
+        delete m.userData._ambEnv;
+      }
+    });
+  });
+  Lights._envApplied=true;
+}
+Lights.apply();
 const ground=new THREE.Mesh(new THREE.CircleGeometry(30,64),
   new THREE.ShadowMaterial({opacity:.32}));
 ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
@@ -2584,17 +2805,17 @@ function getEnv(){
   return _envTex;
 }
 const MATS={
-  metal:{name:'默认',make:c=>new THREE.MeshStandardMaterial({color:c,roughness:.35,metalness:.6,transparent:true})},
-  steel:{name:'不锈钢',make:c=>new THREE.MeshStandardMaterial({
+  metal:{name:'默认',std:null,make:c=>new THREE.MeshStandardMaterial({color:c,roughness:.35,metalness:.6,transparent:true})},
+  steel:{name:'不锈钢',std:0xb8bec7,make:c=>new THREE.MeshStandardMaterial({
     color:new THREE.Color(c).lerp(new THREE.Color(0xdfe3e8),.55),
     roughness:.22,metalness:1,envMap:getEnv(),envMapIntensity:1.25,transparent:true})},
-  plastic:{name:'塑料',make:c=>new THREE.MeshStandardMaterial({
+  plastic:{name:'塑料',std:0xe9eaec,make:c=>new THREE.MeshStandardMaterial({
     color:new THREE.Color(c).lerp(new THREE.Color(0xffffff),.15),
     roughness:.45,metalness:0,envMap:getEnv(),envMapIntensity:.35,transparent:true})},
-  rock:{name:'岩石',make:c=>new THREE.MeshStandardMaterial({
+  rock:{name:'岩石',std:0x9a8f80,make:c=>new THREE.MeshStandardMaterial({
     color:new THREE.Color(c).lerp(new THREE.Color(0x8a7f72),.55),
     roughness:.95,metalness:0,flatShading:true,transparent:true})},
-  glass:{name:'玻璃',make:c=>new THREE.MeshPhysicalMaterial({
+  glass:{name:'玻璃',std:0xbfe0ff,make:c=>new THREE.MeshPhysicalMaterial({
     color:new THREE.Color(c).lerp(new THREE.Color(0xeaf6ff),.7),
     roughness:.05,metalness:0,transparent:true,opacity:.28,
     transmission:.9,thickness:.6,ior:1.5,
@@ -2609,6 +2830,127 @@ function applyMat(p,key){
   p.mesh.material=m;
   p.mat=key;
   p.matParams=null;
+  syncMatShade(p);
+}
+/* 预设材质：点击赋予材质的同时，把颜色同步为预设标准色（默认=保持原色） */
+function applyMatStd(p,key){
+  applyMat(p,key);
+  const std=MATS[key]&&MATS[key].std;
+  if(std){
+    p.mesh.material.color.set(std);
+    p.color='#'+new THREE.Color(std).getHexString();
+  }
+}
+
+/* ==================== 着色模式（平滑 / 硬边 / 自动） ==================== */
+const SHADE_NAMES={auto:'自动着色',smooth:'平滑着色',flat:'硬边（平面着色）'};
+function partBaseGeo(p){
+  if(!p._g0){ p._g0=new THREE.BufferGeometry().copy(p.mesh.geometry); }
+  return p._g0;
+}
+function geoCopyShade(g){ return new THREE.BufferGeometry().copy(g); }
+function weldForSmooth(g){
+  if(g.index) return g;
+  const pos=g.attributes.position, n=pos.count;
+  if(!pos||n<3) return g;
+  const _b=new THREE.Box3().setFromBufferAttribute(pos);
+  const _s=_b.getSize(new THREE.Vector3());
+  const eps=Math.max(1e-8, Math.max(_s.x,_s.y,_s.z)*1e-5);
+  const names=Object.keys(g.attributes).filter(k=>k!=='index');
+  const ats=names.map(k=>g.attributes[k]);
+  const map=new Map(), remap=new Uint32Array(n), first=[];
+  let vc=0;
+  for(let i=0;i<n;i++){
+    const k=Math.round(pos.getX(i)/eps)+'|'+Math.round(pos.getY(i)/eps)+'|'+Math.round(pos.getZ(i)/eps);
+    let id=map.get(k);
+    if(id===undefined){ id=vc++; map.set(k,id); first.push(i); }
+    remap[i]=id;
+  }
+  if(vc===n) return g;
+  const ng=new THREE.BufferGeometry();
+  names.forEach((name,ai)=>{
+    const at=ats[ai], is=at.itemSize, src=at.array;
+    const T=src instanceof Float32Array?Float32Array:(src instanceof Uint16Array?Uint16Array:(src instanceof Uint8Array?Uint8Array:Float32Array));
+    const out=new T(vc*is);
+    for(let j=0;j<vc;j++){
+      const fi=first[j]*is;
+      for(let c=0;c<is;c++) out[j*is+c]=src[fi+c];
+    }
+    ng.setAttribute(name,new THREE.BufferAttribute(out,is));
+  });
+  ng.setIndex(new THREE.BufferAttribute(vc<=65535?new Uint16Array(remap):remap,1));
+  ng.computeBoundingBox(); ng.computeBoundingSphere();
+  return ng;
+}
+function smoothifyGeo(g){
+  const w=weldForSmooth(g);
+  w.deleteAttribute('normal');
+  w.computeVertexNormals();
+  if(!w.boundingBox) w.computeBoundingBox();
+  if(!w.boundingSphere) w.computeBoundingSphere();
+  return w;
+}
+function syncMatShade(p,s){
+  s=s||p.shade||'auto';
+  const m=p.mesh.material;
+  if(!m||Array.isArray(m)) return;
+  if(s==='flat'){ if(!m.flatShading){ m.flatShading=true; m.needsUpdate=true; } }
+  else if(s==='smooth'){ if(m.flatShading){ m.flatShading=false; m.needsUpdate=true; } }
+}
+function applyPartShade(p){
+  const s=p.shade||'auto';
+  const cur=p.mesh.geometry;
+  if(cur.userData&&cur.userData._shade===s){ syncMatShade(p,s); return; }
+  if(s==='auto'&&!p._g0){ syncMatShade(p,s); return; }
+  const ng=(s==='smooth')?smoothifyGeo(geoCopyShade(partBaseGeo(p))):geoCopyShade(partBaseGeo(p));
+  const old=p.mesh.geometry;
+  if(old!==p._g0&&old!==ng) old.dispose();
+  p.mesh.geometry=ng;
+  ng.userData=ng.userData||{}; ng.userData._shade=s;
+  syncMatShade(p,s);
+}
+function setPartShade(p,shade){
+  const old=p.shade||'auto';
+  if(old===shade){ UI.toast(p.name+' 已是「'+SHADE_NAMES[shade]+'」着色'); return; }
+  History.push('shade');
+  p.shade=shade;
+  applyPartShade(p);
+  applyExplode();
+}
+function shadeBatch(shade){
+  if(!State.parts.length){ UI.toast('没有零件'); return; }
+  const list=State.sel.length?State.sel.map(i=>State.parts[i]).filter(Boolean):State.parts.slice();
+  const changed=list.filter(p=>(p.shade||'auto')!==shade);
+  if(!changed.length){ UI.toast('目标零件已是「'+SHADE_NAMES[shade]+'」着色'); return; }
+  History.push('shadeBatch');
+  changed.forEach(p=>{ p.shade=shade; applyPartShade(p); });
+  applyExplode();
+  UI.refresh();
+  UI.toast('已将 '+changed.length+' 个零件设为「'+SHADE_NAMES[shade]+'」'
+    +(shade==='smooth'?'（已焊接顶点并平均法线 · 硬棱边光滑化）':(shade==='flat'?'（平面着色 · 恢复棱角）':''))
+    +' — Ctrl+Z 可撤销');
+}
+/* 恢复刚导入时的显示：几何还原 + 自动着色 + 导入材质与颜色（仅导入生成的零件有效） */
+function restoreImportDisplay(){
+  if(!State.parts.length){ UI.toast('没有零件'); return; }
+  const list=State.sel.length?State.sel.map(i=>State.parts[i]).filter(Boolean):State.parts.slice();
+  const hit=list.filter(p=>p._import);
+  if(!hit.length){ UI.toast('这些零件不是导入生成的（演示零件没有导入显示快照）'); return; }
+  History.push('restoreImport');
+  hit.forEach(p=>{
+    const imp=p._import;
+    p.shade='auto';
+    p.matKeys=[];
+    applyPartShade(p);                       // 几何还原为导入原状并回到自动着色
+    const cur=p.mesh.material;
+    if(imp.mat&&cur!==imp.mat){ p.mesh.material=imp.mat; }   // 还原导入时的材质对象（GLB 贴图材质同引用）
+    if(p.mesh.material&&p.mesh.material.color&&imp.color){ p.mesh.material.color.set(imp.color); }
+    p.color=imp.color;
+    p.mat='metal'; p.matParams=null;
+    syncMatShade(p);
+  });
+  applyExplode(); UI.refresh();
+  UI.toast('已恢复 '+hit.length+' 个零件为导入时的显示（几何/自动着色/材质与颜色） — Ctrl+Z 可撤销');
 }
 
 /* ---------- 程序化纹理生成(Cache) ---------- */
@@ -2713,6 +3055,7 @@ function applyCustom(p,params){
   p.mesh.material=makeCustomMat(params,c);
   p.mat='custom';
   p.matParams={...params};
+  syncMatShade(p);
 }
 
 /* ---------- 材质关键帧动画 ---------- */
@@ -3170,6 +3513,25 @@ const Liquid={
 
 /* ==================== 演示装配体 ==================== */
 const PALETTE=[0xc0392b,0xe67e22,0xf1c40f,0x27ae60,0x16a085,0x2980b9,0x8e44ad,0xecf0f1,0x95a5a6,0x7f8c8d];
+/* 导入着色保留：勾选「保留原始着色」且为 GLB/glTF 时保留模型自带材质（颜色/贴图）；
+   其余情况或未勾选 → 用配色盘统一金属涂装。返回该零件的最终颜色（供色点/序列化） */
+function importMatFor(o,fallbackCol,keepSrc){
+  const list=Array.isArray(o.material)?o.material:(o.material?[o.material]:[]);
+  if(!keepSrc){
+    list.forEach(m=>{ if(m&&m.dispose) m.dispose(); });
+    o.material=MATS.metal.make(fallbackCol);
+    return fallbackCol;
+  }
+  let src=null;
+  for(const m of list){ if(m&&!m.isMeshBasicMaterial){ src=m; break; } }
+  if(!src) src=list[0]||null;
+  if(!src){ o.material=MATS.metal.make(fallbackCol); return fallbackCol; }
+  for(const m of list){ if(m&&m!==src&&m.dispose) m.dispose(); }
+  o.material=src;
+  const c=src.color;
+  const hex=(c&&c.getHex)?c.getHex():null;
+  return hex!=null?('#'+('00000'+hex.toString(16)).slice(-6)):fallbackCol;
+}
 function makePart(geo,name,pos){
   const color=PALETTE[State.parts.length%PALETTE.length];
   const m=new THREE.Mesh(geo,MATS.metal.make('#'+new THREE.Color(color).getHexString()));
@@ -3677,6 +4039,7 @@ function captureInit(){
     explodeMode:State.explodeMode, mixRatio:State.mixRatio,
     assemblySpin:{...(State.assemblySpin||{})},
     bg:State.bg,
+    lights: JSON.parse(JSON.stringify(State.lights)),
     groups:State.groups.map(g=>({name:g.name,parts:[...g.parts]})),
     section:{...State.section}, sectionKeys:[],
     camKeys:[], bomKeys:[],
@@ -3690,6 +4053,7 @@ function captureInit(){
       spin:p.spin||[0,0,0],
       pivot:p.pivot??-1, pivotAxis:p.pivotAxis||'y', pivotSpeed:p.pivotSpeed||0,
       pivotFollow:p.pivotFollow!==false, screwLead:p.screwLead||0,
+      shade:p.shade||'auto',
       mat:p.mat||'metal',matParams:p.matParams||null,matKeys:[],
       color:'#'+p.mesh.material.color.getHexString(),
       keys:JSON.parse(JSON.stringify(p.keys))}))
@@ -3704,6 +4068,12 @@ function restoreInit(json){
   State.assemblySpin={...d.assemblySpin};
   Spin.reset();
   State.bg=d.bg;
+  if(d.lights){
+    Object.keys(LIGHT_DEFAULTS).forEach(k=>{
+      State.lights[k]=Object.assign({},LIGHT_DEFAULTS[k],d.lights[k]||{});
+    });
+  }
+  Lights.apply();
   State.groups=(d.groups||[]).map(g=>({name:g.name||'组',parts:(g.parts||[]).filter(i=>i<State.parts.length)}));
   State.section={...d.section};
   State.sectionKeys=[];
@@ -3744,9 +4114,12 @@ function restoreInit(json){
     if(sp.mat==='custom'&&sp.matParams){p.matParams=sp.matParams;applyCustom(p,sp.matParams);}
     else if(sp.mat&&sp.mat!=='metal'){applyMat(p,sp.mat);}
     else p.mat='metal';
+    p.shade=sp.shade||'auto';
+    applyPartShade(p);
   });
   Particles.restore(d.particles);
   Section.rebuild();
+  Lights.apply();
   UI.refresh(); sync();
 }
 
@@ -4048,6 +4421,7 @@ const UI={
     set('ppName',p.name);
     set('ppColor','#'+p.mesh.material.color.getHexString());
     set('ppMat',p.mat||'metal');
+    set('ppShade',p.shade||'auto');
     set('ppOp',Math.round((q.op??1)*100));
     document.getElementById('ppOpVal').textContent=Math.round((q.op??1)*100)+'%';
     const sc=(q.sc||[1,1,1]);
@@ -4459,13 +4833,11 @@ const Importer={
     ImpProgress.set(94,'🔧 构建零件…');
     for(let i=0;i<meshes.length;i++){
       const o=meshes[i];
-      const col='#'+new THREE.Color(PALETTE[i%PALETTE.length]).getHexString();
-      if(Array.isArray(o.material)){
-        o.material.forEach(mm=>{ if(mm&&mm.dispose) mm.dispose(); });
-      }else if(o.material&&o.material.dispose){
-        o.material.dispose();
-      }
-      o.material=MATS.metal.make(col);
+      const fallbackCol='#'+new THREE.Color(PALETTE[i%PALETTE.length]).getHexString();
+      const _ext=(P.filename||'').split('.').pop().toLowerCase();
+      const _keepEl=document.getElementById('impKeepMat');
+      const keepSrc=(_ext==='glb'||_ext==='gltf')&&!!(_keepEl&&_keepEl.checked);
+      const col=importMatFor(o,fallbackCol,keepSrc);
       o.castShadow=o.receiveShadow=true;
       scene.attach(o);
       o.updateMatrixWorld(true);
@@ -4488,6 +4860,7 @@ const Importer={
         pivot:-1, pivotAxis:'y', pivotSpeed:0, pivotFollow:true, screwLead:0,
         mat:'metal', matParams:null, matKeys:[],
         color:col,keys:[]};
+      p._import={color:col, mat:o.material, type:keepSrc?'s':'m'};   // 刚导入时的显示快照：恢复导入外观用（'m'=统一涂装可精确恢复；'s'=GLB 源材质，重载后近似恢复颜色）
       State.parts.push(p);
       recenterPart(p);
       ImpProgress.set(94+(i/meshes.length)*6,'🔧 构建零件 '+(i+1)+' / '+meshes.length+'…');
@@ -4511,6 +4884,7 @@ const Importer={
     buildBOMTags(); UI.refresh(); sync();
     History.clear();
     State._initFull=captureInit();
+    Lights.apply();
     setDirty(true);
     const unitName={mm:'毫米',cm:'厘米',m:'米',in:'英寸',custom:'自定义',auto:'自动适配'}[unit]||unit;
     UI.toast('已导入 '+P.filename+'（'+State.parts.length+' 零件 · 单位: '+unitName+'）'
@@ -4774,7 +5148,7 @@ const Curve={
 };
 
 /* ==================== 3D 文件加载（导入按钮 + 拖放 共用 · 带进度条） ==================== */
-const FORMAT_TIP='GLB/glTF/OBJ/STL/FBX/DAE/PLY/3DS/3MF';
+const FORMAT_TIP='GLB/glTF/OBJ/STL';
 
 const ImpProgress={
   show(){ const box=$('impLoadProgress'); if(box){box.style.display='block';} this.set(0,'准备读取…'); },
@@ -4825,7 +5199,7 @@ async function loadModelFile(file){
     const pct=t>0?(l/t*80):80;
     ImpProgress.set(pct,'📥 读取文件… '+Math.round(l/t*100)+'%（'+fmtMB(l)+' / '+fmtMB(t)+'）');
   });
-  const needText=(ext==='obj'||ext==='gltf'||ext==='dae');
+  const needText=(ext==='obj'||ext==='gltf');
   const text=needText?new TextDecoder('utf-8').decode(buf):null;
   ImpProgress.set(82,'🔍 解析模型格式…');
   await nextFrame();
@@ -4837,26 +5211,9 @@ async function loadModelFile(file){
   }else if(ext==='stl'){
     root=new THREE.Mesh(new STLLoader().parse(buf),
       new THREE.MeshStandardMaterial({color:0x999999,metalness:.5,roughness:.4,transparent:true}));
-  }else if(ext==='fbx'){
-    root=new FBXLoader().parse(buf,'');
-  }else if(ext==='dae'){
-    root=new ColladaLoader().parse(text).scene;
-  }else if(ext==='ply'){
-    const geo=new PLYLoader().parse(buf);
-    geo.computeVertexNormals();
-    if(!geo.index&&geo.attributes.position&&geo.attributes.position.count%3!==0){
-      root=new THREE.Points(geo,new THREE.PointsMaterial({color:0x9fd8ff,size:.02}));
-    }else{
-      root=new THREE.Mesh(geo,
-        new THREE.MeshStandardMaterial({color:0x999999,metalness:.3,roughness:.6,transparent:true}));
-    }
-  }else if(ext==='3ds'){
-    root=new TDSLoader().parse(buf);
-  }else if(ext==='3mf'){
-    root=new ThreeMFLoader().parse(buf);
   }else{
     ImpProgress.hide();
-    throw new Error('不支持的格式 .'+ext+' — 支持 '+FORMAT_TIP+'（STEP/IGES/3DM 等 CAD 格式请先导出为 glTF/OBJ/STL）');
+    throw new Error('离线版内置引擎仅支持 GLB/glTF/OBJ/STL — 文件是 .'+ext+'，请在 Blender / FreeCAD / 原 CAD 中导出为 glTF/OBJ/STL 后再导入（FBX/DAE/PLY/3DS/3MF/STEP/IGES 同理）');
   }
   if(!root){ ImpProgress.hide(); throw new Error('文件解析结果为空'); }
   root.updateMatrixWorld(true);
@@ -4885,6 +5242,71 @@ viewport.addEventListener('drop',e=>{
 /* ==================== 几何序列化 ==================== */
 const serializeGeo=geo=>({pos:Array.from(geo.attributes.position.array),
   idx:geo.index?Array.from(geo.index.array):null});
+/* 把“导入态”写入项目：c=导入颜色 t=类型(m 统一涂装/s 源材质) g=导入原几何（仅当着色被改过、与原几何不同时保存，用于重开后还原） */
+function serImportState(p){
+  if(!p||!p._import) return null;
+  return {
+    c:p._import.color||p.color,
+    t:p._import.type||'m',
+    g:p._g0?serializeGeo(p._g0):null
+  };
+}
+/* ===== 材质/贴图持久化：把 MeshStandard/Physical 材质（含贴图图像）写入工程/导出，重开即还原导入外观 ===== */
+function texDataURL(tex){
+  const img=tex&&tex.image;
+  if(!img) return null;
+  let cv=null;
+  try{
+    if(typeof HTMLCanvasElement!=='undefined'&&img instanceof HTMLCanvasElement){ cv=img; }
+    else if(typeof ImageBitmap!=='undefined'&&img instanceof ImageBitmap){
+      cv=document.createElement('canvas'); cv.width=img.width; cv.height=img.height;
+      cv.getContext('2d').drawImage(img,0,0);
+    }else if(img&&img.tagName==='IMG'){
+      const w=img.naturalWidth||img.width||0, h=img.naturalHeight||img.height||0;
+      if(!w||!h) return null;
+      cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0);
+    }
+  }catch(e){ return null; }
+  if(!cv) return null;
+  try{ return cv.toDataURL('image/png'); }catch(e){ return null; }
+}
+function serializeMatSpec(m,putTex){
+  if(!m||!m.isMeshStandardMaterial) return null;
+  const isP=!!m.isMeshPhysicalMaterial;
+  const o={k:isP?'p':'s'};
+  o.c='#'+m.color.getHexString();
+  o.m=+(m.metalness||0); o.r=+(m.roughness!=null?m.roughness:1);
+  if(m.emissive&&m.emissive.getHex()>0){ o.e='#'+m.emissive.getHexString(); o.ei=+(m.emissiveIntensity||0); }
+  if(m.side===THREE.DoubleSide) o.s=2; else if(m.side===THREE.BackSide) o.s=1;
+  if(m.transparent){ o.t=1; o.op=+(m.opacity!=null?m.opacity:1); }
+  if(m.depthWrite===false) o.dw=0;
+  if(m.flatShading) o.f=1;
+  const envBase=(m.userData&&m.userData._ambEnv)?(m.userData._ambEnv.ei||0):(m.envMapIntensity||0);
+  if(envBase>0&&m.envMap) o.ei2=+envBase;
+  if(isP){
+    if(m.clearcoat>0){ o.cc=+m.clearcoat; o.ccr=+(m.clearcoatRoughness||0); }
+    if(m.transmission>0){ o.tr=+m.transmission; o.th=+(m.thickness||0); o.ior=+(m.ior||1.5); }
+  }
+  const MAPLIST=[['map',1],['emissiveMap',1],['normalMap',0],['roughnessMap',0],['metalnessMap',0],['aoMap',0],['alphaMap',0]];
+  const mp={}; let has=false;
+  for(let i=0;i<MAPLIST.length;i++){
+    const nm=MAPLIST[i][0], sg=MAPLIST[i][1];
+    const t=m[nm];
+    if(!t||!t.image) continue;
+    const id=putTex(t); if(!id) continue;
+    const d={id:id, sg:sg};
+    d.r=[t.repeat?t.repeat.x:1, t.repeat?t.repeat.y:1];
+    d.o=[t.offset?t.offset.x:0, t.offset?t.offset.y:0];
+    d.rt=t.rotation||0;
+    d.ws=t.wrapS||1000; d.wt=t.wrapT||1000;
+    d.fl=t.flipY?1:0;
+    if(nm==='normalMap'&&t.normalScale) d.n=[t.normalScale.x, t.normalScale.y];
+    mp[nm]=d; has=true;
+  }
+  if(has) o.mp=mp;
+  return o;
+}
 function buildGeo(d){
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(d.pos,3));
@@ -5520,6 +5942,26 @@ const Exporter={
     );
     const RT=`
 var DATA=${safeJson};
+function weldGeo(g){
+ var pa=g.attributes.position,n=pa.count;
+ if(!pa||!n||g.index)return g;
+ var bb=new THREE.Box3().setFromBufferAttribute(pa),sz=bb.getSize(new THREE.Vector3());
+ var eps=Math.max(1e-8,Math.max(sz.x,sz.y,sz.z)*1e-5);
+ var nms=[],ats=[],ks=Object.keys(g.attributes);
+ for(var qi=0;qi<ks.length;qi++){if(ks[qi]!=="index"){nms.push(ks[qi]);ats.push(g.attributes[ks[qi]]);}}
+ var map=Object.create(null),fst=[],rem=new Uint32Array(n),vc=0;
+ for(var vi=0;vi<n;vi++){
+  var kk=Math.round(pa.getX(vi)/eps)+"|"+Math.round(pa.getY(vi)/eps)+"|"+Math.round(pa.getZ(vi)/eps);
+  if(map[kk]===undefined){map[kk]=vc;fst.push(vi);vc++;}
+  rem[vi]=map[kk];}
+ if(vc===n)return g;
+ var ng=new THREE.BufferGeometry();
+ for(var ai=0;ai<nms.length;ai++){var at=ats[ai],is=at.itemSize,src=at.array,Ct=src.constructor;
+  var na=new Ct(vc*is);
+  for(var ji=0;ji<vc;ji++){var fi=fst[ji]*is;for(var ci=0;ci<is;ci++){na[ji*is+ci]=src[fi+ci];}}
+  ng.setAttribute(nms[ai],new THREE.BufferAttribute(na,is));}
+ ng.setIndex(new THREE.BufferAttribute(vc<=65535?new Uint16Array(rem):rem,1));
+ return ng;}
 var ease={linear:function(t){return t},easeIn:function(t){return t*t*t},easeOut:function(t){return 1-Math.pow(1-t,3)},easeInOut:function(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2},elastic:function(t){return t===0?0:t===1?1:Math.pow(2,-10*t)*Math.sin((t*10-.75)*(2*Math.PI/3))+1}};
 function scOf(k){return k.sc||[1,1,1];}
 function evalP(keys,t){
@@ -5556,18 +5998,54 @@ var renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
 renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(devicePixelRatio);
 renderer.shadowMap.enabled=true;document.body.appendChild(renderer.domElement);
 ${secHas?'renderer.localClippingEnabled=true;':''}
-scene.add(new THREE.HemisphereLight(0xdde6ff,0x30281e,.7));
-var dl=new THREE.DirectionalLight(0xffffff,1.6);dl.position.set(6,10,6);dl.castShadow=true;scene.add(dl);
-var rl=new THREE.DirectionalLight(0x88aaff,.5);rl.position.set(-6,4,-8);scene.add(rl);
-var ul=new THREE.DirectionalLight(0x6a86c8,.35);ul.position.set(-3,-8,5);scene.add(ul);
+var LIT=DATA.lights||{hemi:{on:true,c1:"#dde6ff",c2:"#30281e",int:.7},key:{on:true,col:"#ffffff",int:1.6,shadow:true,az:45,el:50,dist:13.1},rim:{on:true,col:"#88aaff",int:.5,az:-143,el:22,dist:10.8},under:{on:true,col:"#6a86c8",int:.35,az:-31,el:-54,dist:9.9},amb:{on:false,col:"#ffffff",int:.5}};
+function LD3(a,e,d,da,de,dd){if(a==null)a=da;if(e==null)e=de;if(d==null)d=dd;var aa=a*Math.PI/180,ee=e*Math.PI/180;return new THREE.Vector3(Math.cos(ee)*Math.sin(aa)*d,Math.sin(ee)*d,Math.cos(ee)*Math.cos(aa)*d);}
+var hl=new THREE.HemisphereLight(LIT.hemi.c1,LIT.hemi.c2,LIT.hemi.int);hl.visible=!!LIT.hemi.on;scene.add(hl);
+var dl=new THREE.DirectionalLight(LIT.key.col,LIT.key.int);dl.position.copy(LD3(LIT.key.az,LIT.key.el,LIT.key.dist,45,50,13.1));dl.castShadow=!!(LIT.key.on&&LIT.key.shadow);dl.visible=!!LIT.key.on;scene.add(dl);
+var rl=new THREE.DirectionalLight(LIT.rim.col,LIT.rim.int);rl.position.copy(LD3(LIT.rim.az,LIT.rim.el,LIT.rim.dist,-143,22,10.8));rl.visible=!!LIT.rim.on;scene.add(rl);
+var ul=new THREE.DirectionalLight(LIT.under.col,LIT.under.int);ul.position.copy(LD3(LIT.under.az,LIT.under.el,LIT.under.dist,-31,-54,9.9));ul.visible=!!LIT.under.on;scene.add(ul);
+var AMB=LIT.amb||{on:false,col:"#ffffff",int:.5};
+var al=new THREE.AmbientLight(AMB.col,AMB.int);al.visible=!!AMB.on;scene.add(al);
 var ground=new THREE.Mesh(new THREE.CircleGeometry(30,64),new THREE.ShadowMaterial({opacity:.32}));
 ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+var dataTex={};
+if(DATA.tex){for(var ti=0;ti<DATA.tex.length;ti++){var tdi=DATA.tex[ti];var imi=new Image();imi.src=tdi.url;dataTex[tdi.id]=imi;}}
+function matFromSpec(S){if(!S)return null;
+ var isP=S.k==="p";
+ var o={color:S.c,metalness:(S.m!=null)?S.m:.6,roughness:(S.r!=null)?S.r:.35};
+ if(S.e){o.emissive=S.e;o.emissiveIntensity=S.ei||1;}
+ if(S.t){o.transparent=true;o.opacity=(S.op!=null)?S.op:1;}
+ if(S.dw===0){o.depthWrite=false;}
+ if(S.f){o.flatShading=true;}
+ if(S.s===2){o.side=THREE.DoubleSide;}else if(S.s===1){o.side=THREE.BackSide;}
+ var m=isP?new THREE.MeshPhysicalMaterial(o):new THREE.MeshStandardMaterial(o);
+ m.userData={baseOp:(S.t&&S.op!=null)?S.op:1};
+ if(S.cc){m.clearcoat=S.cc;m.clearcoatRoughness=S.ccr||0;}
+ if(S.tr){m.transmission=S.tr;m.thickness=S.th||0;m.ior=S.ior||1.5;}
+ if(S.ei2&&S.ei2>0){m.envMapIntensity=S.ei2;}
+ var MP=S.mp;if(MP){for(var kn in MP){var dd=MP[kn];
+  var im=dataTex[dd.id];if(!im)continue;
+  var tx=new THREE.Texture(im);
+  tx.wrapS=dd.ws||THREE.RepeatWrapping;tx.wrapT=dd.wt||THREE.RepeatWrapping;
+  if(dd.r){tx.repeat.set(dd.r[0],dd.r[1]);}
+  if(dd.o){tx.offset.set(dd.o[0],dd.o[1]);}
+  tx.rotation=dd.rt||0;
+  tx.flipY=dd.fl?true:false;
+  tx.colorSpace=dd.sg?THREE.SRGBColorSpace:THREE.NoColorSpace;
+  if(im.complete){tx.needsUpdate=true;}else{im.addEventListener("load",function(){tx.needsUpdate=true;});}
+  m[kn]=tx;
+  if(kn==="normalMap"&&dd.n){m.normalScale.set(dd.n[0],dd.n[1]);}
+ }}
+ return m;}
 var parts=DATA.parts.map(function(p){
  var g=new THREE.BufferGeometry();
  g.setAttribute("position",new THREE.Float32BufferAttribute(p.geo.pos,3));
  if(p.geo.idx)g.setIndex(p.geo.idx);
+ if(p.shade==="smooth"){if(!g.index)g=weldGeo(g);g.deleteAttribute("normal");}
  g.computeVertexNormals();
- var mat;
+ var mat=null;
+ if(p.mats){mat=matFromSpec(p.mats);}
+ if(!mat){
  if(p.mat==="custom"&&p.matParams){var P=p.matParams;var glassy=P.trans>0.05;
   var O={color:p.color,roughness:P.rough,metalness:P.metal,transparent:true,flatShading:!!P.flat};
   if(glassy){O.transmission=P.trans;O.ior=P.ior;O.opacity=P.op/100*(1-P.trans*.55);O.depthWrite=false;}
@@ -5578,6 +6056,9 @@ var parts=DATA.parts.map(function(p){
  else if(p.mat==="plastic"){mat=new THREE.MeshStandardMaterial({color:p.color,roughness:.45,metalness:0});}
  else if(p.mat==="rock"){mat=new THREE.MeshStandardMaterial({color:p.color,roughness:.95,metalness:0,flatShading:true});}
  else{mat=new THREE.MeshStandardMaterial({color:p.color,roughness:.35,metalness:.6});}
+ }
+ if(p.shade==="flat"){mat.flatShading=true;mat.needsUpdate=true;}
+ else if(p.shade==="smooth"&&mat.flatShading){mat.flatShading=false;mat.needsUpdate=true;}
  mat.transparent=true;
  if(p.mat==="custom"&&p.matParams&&p.matParams.tex&&p.matParams.texA>0.02){var TX=p.matParams.tex,TA=p.matParams.texA;
   var TC=document.createElement("canvas");TC.width=TC.height=512;var tg=TC.getContext("2d");
@@ -5694,7 +6175,8 @@ function tick(){
    else for(var mi=0;mi<ks.length-1;mi++){var ka=ks[mi],kb=ks[mi+1];
     if(T>=ka.t&&T<=kb.t){var mr=(T-ka.t)/Math.max(1e-6,kb.t-ka.t);ma={rough:ka.rough+(kb.rough-ka.rough)*mr,metal:ka.metal+(kb.metal-ka.metal)*mr,op:ka.op+(kb.op-ka.op)*mr};break;}}
    if(ma){p.mesh.material.roughness=ma.rough;p.mesh.material.metalness=ma.metal;}}
-  var BO=p.d.mat==="custom"&&p.d.matParams?((p.d.matParams.trans>0.05)?(p.d.matParams.op/100*(1-p.d.matParams.trans*.55)):(p.d.matParams.op/100)):(p.d.mat==="glass"?.28:1);
+  var BO0=p.d.mat==="custom"&&p.d.matParams?((p.d.matParams.trans>0.05)?(p.d.matParams.op/100*(1-p.d.matParams.trans*.55)):(p.d.matParams.op/100)):(p.d.mat==="glass"?.28:1);
+  var BO=(p.mesh.material.userData&&p.mesh.material.userData.baseOp!=null)?p.mesh.material.userData.baseOp:BO0;
   p.mesh.material.opacity=BO*q.op;p.mesh.material.transparent=true;
   p.mesh.material.depthWrite=p.d.mat==="glass"?false:(p.mesh.material.opacity>.98);});
  parts.forEach(function(p,i){
@@ -5798,14 +6280,27 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
     $('webModal').style.display='none';
   },
   serialize(){
+    const _texMap=new Map(); const _texList=[]; let _texSeq=0;
+    const putTex=t=>{
+      let id=_texMap.get(t);
+      if(id===undefined){
+        const url=texDataURL(t);
+        if(!url) return null;
+        id='tex'+(++_texSeq); _texMap.set(t,id); _texList.push({id:id,url:url});
+      }
+      return id;
+    };
+    const pMat=mat=>{ try{ return serializeMatSpec(mat,putTex); }catch(_){ return null; } };
     return {
       version:28.15, duration:State.duration, explodeAmount:State.explodeAmount,
+      tex:_texList,
       explodeMode:State.explodeMode, mixRatio:State.mixRatio,
       assemblySpin:State.assemblySpin||{x:0,y:0,z:0},
       spinAngle:Spin.ang,
       viewMarks:State.viewMarks, matPresets:State.matPresets,
       groups:State.groups.map(g=>({name:g.name,parts:[...g.parts]})),
       camKeys:State.camKeys, bomKeys:State.bomKeys, bg:State.bg,
+      lights: JSON.parse(JSON.stringify(State.lights)),
       section:State.section, sectionKeys:State.sectionKeys,
       liquid:JSON.parse(JSON.stringify(Liquid.cfg)),
       particles:Particles.serialize(),
@@ -5817,8 +6312,11 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
         spin:p.spin||[0,0,0],
         pivot:p.pivot??-1, pivotAxis:p.pivotAxis||'y', pivotSpeed:p.pivotSpeed||0,
         pivotFollow:p.pivotFollow!==false, screwLead:p.screwLead||0,
+        shade:p.shade||'auto',
+        imp:serImportState(p),
         mat:p.mat||'metal', matParams:p.matParams||null, matKeys:p.matKeys||[],
         secCut:Section.wouldCut(i),
+        mats:pMat(p.mesh.material),
         keys:p.keys, color:'#'+p.mesh.material.color.getHexString(),
         geo:serializeGeo(p.mesh.geometry)
       }))
@@ -5848,6 +6346,12 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
       State.duration=d.duration||10; State.camKeys=d.camKeys||[];
       State.bomKeys=d.bomKeys||[]; State.explodeAmount=d.explodeAmount||0;
       State.bg=d.bg||{type:'solid',v:'#22262e'};
+      if(d.lights){
+        Object.keys(LIGHT_DEFAULTS).forEach(k=>{
+          State.lights[k]=Object.assign({},LIGHT_DEFAULTS[k],d.lights[k]||{});
+        });
+      }
+      Lights.apply();
       State.explodeMode=d.explodeMode||'radial';
       State.mixRatio=(typeof d.mixRatio==='number')?d.mixRatio:60;
       State.assemblySpin=d.assemblySpin||{x:0,y:0,z:0};
@@ -5868,11 +6372,50 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
         document.getElementById('bgColor').value=State.bg.v; }
       State.parts.forEach(p=>scene.remove(p.mesh));
       State.parts=[];
+      // —— 载入贴图库 + 材质规格重建（保真保存时的外观 / 导入外观） ——
+      const _texImgs=new Map();
+      if(d.tex&&d.tex.length){
+        d.tex.forEach(td=>{ if(!td||!td.url) return; const _im=new Image(); _im.decoding='async'; _im.src=td.url; _texImgs.set(td.id,_im); });
+      }
+      const _matFromSpec=spec=>{
+        const isP=spec&&spec.k==='p';
+        const o={color:spec.c, metalness:spec.m!=null?spec.m:0.6, roughness:spec.r!=null?spec.r:0.35};
+        if(spec.e){ o.emissive=spec.e; o.emissiveIntensity=spec.ei||1; }
+        if(spec.t){ o.transparent=true; o.opacity=spec.op!=null?spec.op:1; }
+        if(spec.dw===0) o.depthWrite=false;
+        if(spec.f) o.flatShading=true;
+        if(spec.s===2) o.side=THREE.DoubleSide; else if(spec.s===1) o.side=THREE.BackSide;
+        const m=isP?new THREE.MeshPhysicalMaterial(o):new THREE.MeshStandardMaterial(o);
+        m.userData.baseOp=(spec.t&&spec.op!=null)?spec.op:1;
+        if(spec.cc){ m.clearcoat=spec.cc; m.clearcoatRoughness=spec.ccr||0; }
+        if(spec.tr){ m.transmission=spec.tr; m.thickness=spec.th||0; m.ior=spec.ior||1.5; }
+        if(spec.ei2&&spec.ei2>0){ try{ m.envMap=getEnv(); m.envMapIntensity=spec.ei2; }catch(_){ } }
+        const mp=spec.mp;
+        if(mp){
+          for(const nm in mp){
+            const dd=mp[nm], im=_texImgs.get(dd.id);
+            if(!im) continue;
+            const tx=new THREE.Texture(im);
+            tx.wrapS=dd.ws||THREE.RepeatWrapping; tx.wrapT=dd.wt||THREE.RepeatWrapping;
+            if(dd.r) tx.repeat.set(dd.r[0],dd.r[1]);
+            if(dd.o) tx.offset.set(dd.o[0],dd.o[1]);
+            tx.rotation=dd.rt||0;
+            tx.flipY=dd.fl?true:false;
+            tx.colorSpace=dd.sg?THREE.SRGBColorSpace:THREE.NoColorSpace;
+            const upd=()=>{ tx.needsUpdate=true; };
+            if(im.complete) upd(); else im.addEventListener('load',upd);
+            m[nm]=tx;
+            if(nm==='normalMap'&&dd.n) m.normalScale.set(dd.n[0],dd.n[1]);
+          }
+        }
+        return m;
+      };
       d.parts.forEach(sp=>{
+        const specMat=(sp.mats)?_matFromSpec(sp.mats):null;
         const m=new THREE.Mesh(buildGeo(sp.geo),
-          new THREE.MeshStandardMaterial({color:sp.color,roughness:.35,metalness:.6,transparent:true,opacity:1}));
+          specMat||new THREE.MeshStandardMaterial({color:sp.color,roughness:.35,metalness:.6,transparent:true,opacity:1}));
         m.castShadow=m.receiveShadow=true; scene.add(m);
-        State.parts.push({name:sp.name,label:sp.label||'',mesh:m,
+        const np={name:sp.name,label:sp.label||'',mesh:m,
           homePos:new THREE.Vector3(sp.home[0],sp.home[1],sp.home[2]),
           explodeDir:new THREE.Vector3(sp.dir[0],sp.dir[1],sp.dir[2]),
           explodeDist:sp.dist,
@@ -5881,17 +6424,27 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
           spin:sp.spin||[0,0,0],
           pivot:sp.pivot??-1, pivotAxis:sp.pivotAxis||'y', pivotSpeed:sp.pivotSpeed||0,
           pivotFollow:sp.pivotFollow!==false, screwLead:sp.screwLead||0,
+          shade:sp.shade||'auto',
           mat:sp.mat||'metal', matParams:sp.matParams||null,
           matKeys:(sp.matKeys||[]).map(k=>({...k})),
           color:sp.color, keys:(sp.keys||[]).map(k=>({
             t:k.t,exp:k.exp??0,pos:k.pos||[0,0,0],rot:k.rot||[0,0,0],
-            sc:k.sc||[1,1,1],op:k.op??1,ease:k.ease||'easeInOut'}))});
+            sc:k.sc||[1,1,1],op:k.op??1,ease:k.ease||'easeInOut'}))};
+        if(specMat){ np._specMat=1; np._specKey=sp.mat||'metal'; }
+        State.parts.push(np);
       });
       State.parts.forEach(p=>{
+        if(p._specMat){ p.mat=p._specKey||'metal'; return; }
         if(p.mat==='custom'&&p.matParams){applyCustom(p,p.matParams);}
         else if(p.mat&&p.mat!=='metal'){applyMat(p,p.mat);}
         else p.mat='metal';
       });
+      State.parts.forEach((p,i)=>{
+        const sp=d.parts[i]; if(!sp||!sp.imp) return;
+        p._import={color:sp.imp.c||p.color, mat:null, type:sp.imp.t||'m'};
+        if(sp.imp.g) p._g0=buildGeo(sp.imp.g);   // 导入原几何：供自动着色/恢复导入态时还原
+      });
+      State.parts.forEach(p=>applyPartShade(p));
       Orbit.target.copy(assemblyCenter());
       Orbit.syncFromCamera();
       applyBackground();
@@ -5911,6 +6464,7 @@ addEventListener("resize",function(){camera.aspect=innerWidth/innerHeight;camera
       buildBOMTags(); UI.refresh(); sync();
       History.clear();
       State._initFull=captureInit();
+      Lights.apply();
       setDirty(false);
       UI.toast('项目已加载 ✓（'+State.parts.length+' 零件 / '+State.groups.length+' 组 / '+Particles.systems.length+' 套粒子'
         +(State.section.on?' / 剖面开':'')+(Liquid.cfg.on?' / 液体开':'')+'）— 按 F 聚焦');
@@ -6032,6 +6586,108 @@ $('bgSel').onchange=e=>{
   applyBackground();
 };
 $('bgColor').oninput=e=>{ State.bg={type:'solid',v:e.target.value}; applyBackground(); };
+/* ---- 💡 灯光面板 ---- */
+function lightToUI(){
+  const L=Object.assign({},LIGHT_DEFAULTS,State.lights||{});
+  const G=(k,d)=>Object.assign({},d,L[k]||{});
+  const H=G('hemi',LIGHT_DEFAULTS.hemi), K=G('key',LIGHT_DEFAULTS.key),
+        R=G('rim',LIGHT_DEFAULTS.rim), U=G('under',LIGHT_DEFAULTS.under), A=G('amb',LIGHT_DEFAULTS.amb);
+  const set=(id,v)=>{ const el=$(id); if(el&&document.activeElement!==el) el.value=v; };
+  const chk=(id,v)=>{ const el=$(id); if(el&&document.activeElement!==el) el.checked=!!v; };
+  const num=(id,v,dec)=>{ set(id,v); const el=$(id+'V'); if(el) el.textContent=(+v).toFixed(dec); };
+  chk('ltHemOn',H.on); set('ltHemC1',H.c1); set('ltHemC2',H.c2);
+  num('ltHemInt',H.int,2);
+  chk('ltKeyOn',K.on); set('ltKeyCol',K.col); chk('ltKeySh',K.shadow);
+  num('ltKeyInt',K.int,2);
+  num('ltKeyAz',K.az,0);
+  num('ltKeyEl',K.el,0);
+  chk('ltRimOn',R.on); set('ltRimCol',R.col);
+  num('ltRimInt',R.int,2);
+  num('ltRimAz',R.az,0);
+  num('ltRimEl',R.el,0);
+  chk('ltUnderOn',U.on); set('ltUnderCol',U.col);
+  num('ltUnderInt',U.int,2);
+  num('ltUnderAz',U.az,0);
+  num('ltUnderEl',U.el,0);
+  chk('ltAmbOn',A.on); set('ltAmbCol',A.col);
+  num('ltAmbInt',A.int,2);
+}
+function lightFromUI(){
+  try{
+    const need=['ltHemOn','ltHemC1','ltHemC2','ltHemInt','ltKeyOn','ltKeyCol','ltKeyInt','ltKeySh','ltKeyAz','ltKeyEl','ltRimOn','ltRimCol','ltRimInt','ltRimAz','ltRimEl','ltUnderOn','ltUnderCol','ltUnderInt','ltUnderAz','ltUnderEl','ltAmbOn','ltAmbCol','ltAmbInt'];
+    for(const id of need){ if(!document.getElementById(id)) return; }
+    const L=State.lights;
+    const num=id=>(+$(id).value)||0;
+    const K0=L.key||{}, R0=L.rim||{}, U0=L.under||{};
+    L.hemi={on:$('ltHemOn').checked,c1:$('ltHemC1').value,c2:$('ltHemC2').value,int:num('ltHemInt')};
+    L.key={on:$('ltKeyOn').checked,col:$('ltKeyCol').value,int:num('ltKeyInt'),shadow:$('ltKeySh').checked,az:num('ltKeyAz'),el:num('ltKeyEl'),dist:K0.dist};
+    L.rim={on:$('ltRimOn').checked,col:$('ltRimCol').value,int:num('ltRimInt'),az:num('ltRimAz'),el:num('ltRimEl'),dist:R0.dist};
+    L.under={on:$('ltUnderOn').checked,col:$('ltUnderCol').value,int:num('ltUnderInt'),az:num('ltUnderAz'),el:num('ltUnderEl'),dist:U0.dist};
+    L.amb={on:$('ltAmbOn').checked,col:$('ltAmbCol').value,int:num('ltAmbInt')};
+    Lights.apply();
+    console.debug('💡 灯光已应用', JSON.stringify(State.lights));
+    setDirty(true);
+  }catch(err){ console.error('灯光更新失败:',err); }
+}
+$('btnLights').onclick=()=>{
+  lightToUI(); Lights.apply();
+  const m=$('lightModal');
+  m.style.display='flex';
+  const r=m.getBoundingClientRect();
+  if(r.right>window.innerWidth-8||r.bottom>window.innerHeight-8){
+    m.style.left=Math.max(8,Math.min(24,window.innerWidth-r.width-8))+'px';
+    m.style.top=Math.max(8,Math.min(96,window.innerHeight-r.height-8))+'px';
+  }
+};
+$('ltClose').onclick=()=>{ $('lightModal').style.display='none'; };
+/* ---- 可拖浮窗：灯光 / 角度设置窗口（不遮挡视口，可边调边看实时效果） ---- */
+function initFloatDrag(winId,barId){
+  const m=document.getElementById(winId), bar=document.getElementById(barId);
+  if(!m||!bar) return;
+  let down=false,sx=0,sy=0,ox=0,oy=0;
+  bar.addEventListener('pointerdown',e=>{
+    if(e.button!==0) return;
+    down=true; sx=e.clientX; sy=e.clientY;
+    const r=m.getBoundingClientRect(); ox=r.left; oy=r.top;
+    try{ bar.setPointerCapture(e.pointerId); }catch(_){}
+    e.preventDefault();
+  });
+  bar.addEventListener('pointermove',e=>{
+    if(!down) return;
+    const nx=Math.max(-m.offsetWidth+120,Math.min(window.innerWidth-40,ox+e.clientX-sx));
+    const ny=Math.max(4,Math.min(window.innerHeight-28,oy+e.clientY-sy));
+    m.style.left=nx+'px'; m.style.top=ny+'px';
+  });
+  const end=()=>{ down=false; };
+  bar.addEventListener('pointerup',end);
+  bar.addEventListener('pointercancel',end);
+}
+initFloatDrag('lightModal','ltDrag');
+initFloatDrag('angModal','angDrag');
+$('ltReset').onclick=()=>{
+  State.lights=JSON.parse(JSON.stringify(LIGHT_DEFAULTS));
+  lightToUI(); Lights.apply(); setDirty(true);
+  UI.toast('💡 灯光已恢复默认');
+};
+$('ltSceneStudio').onclick=()=>lightSceneApply('studio');
+$('ltSceneProduct').onclick=()=>lightSceneApply('product');
+$('ltSceneWarm').onclick=()=>lightSceneApply('warm');
+$('ltSceneCool').onclick=()=>lightSceneApply('cool');
+$('ltSceneDark').onclick=()=>lightSceneApply('dark');
+$('ltSceneShadowless').onclick=()=>lightSceneApply('shadowless');
+$('lightModal').addEventListener('input',e=>{
+  const el=e.target; if(!el||!el.id||el.id.indexOf('lt')!==0) return;
+  const vEl=document.getElementById(el.id+'V');
+  if(vEl){
+    const v=+el.value;
+    vEl.textContent=(el.id.endsWith('Az')||el.id.endsWith('El'))?String(Math.round(v)):v.toFixed(2);
+  }
+  lightFromUI();
+});
+$('lightModal').addEventListener('change',e=>{
+  const el=e.target; if(!el||!el.id||el.id.indexOf('lt')!==0) return;
+  lightFromUI();
+});
 $('expBg').onchange=e=>{ $('expBgColorRow').style.display = e.target.value==='custom'?'block':'none'; };
 
 /* ---- 视图锁定 ---- */
@@ -6125,15 +6781,20 @@ const bindMat=(id,key)=>$(id).onclick=()=>{
   if(!State.parts.length){UI.toast('没有零件');return;}
   History.push('mat');
   const targets=State.sel.length?State.sel.map(i=>State.parts[i]):State.parts;
-  targets.forEach(p=>applyMat(p,key));
+  targets.forEach(p=>applyMatStd(p,key));
   UI.refresh();
-  UI.toast('已将 '+targets.length+' 个零件设为「'+MATS[key].name+'」材质');
+  UI.toast('已将 '+targets.length+' 个零件设为「'+MATS[key].name+'」材质'
+    +(MATS[key].std?'（含预设配色 #'+('00000'+(MATS[key].std).toString(16)).slice(-6)+'）':'（保持原色）'));
 };
 bindMat('matSteel','steel');
 bindMat('matPlastic','plastic');
 bindMat('matRock','rock');
 bindMat('matGlass','glass');
 bindMat('matDefault','metal');
+$('btnShadeSmooth').onclick=()=>shadeBatch('smooth');
+$('btnShadeFlat').onclick =()=>shadeBatch('flat');
+$('btnShadeAuto').onclick =()=>shadeBatch('auto');
+$('btnShadeRestore').onclick=()=>restoreImportDisplay();
 
 /* ---- 材质编辑器绑定 ---- */
 $('matEdit').onclick=()=>MatEdit.open();
@@ -6329,7 +6990,7 @@ $('ppMat').onchange=e=>{
     return;
   }
   History.push('ppMat');
-  applyMat(p,key);
+  applyMatStd(p,key);
   applyExplode(); UI.refresh();
   UI.toast(p.name+' → '+MATS[key].name+' 材质');
 };
@@ -6384,6 +7045,11 @@ const orbitFromPanel=()=>{
   }
 };
 ['ppPivot','ppPivotSpd','ppPivotAx','ppPivotFollow','ppScrew'].forEach(id=>$(id).onchange=orbitFromPanel);
+$('ppShade').onchange=e=>{
+  const p=curPart(); if(!p)return;
+  setPartShade(p,e.target.value);
+  UI.refresh();
+};
 
 /* 键盘快捷键 */
 addEventListener('keydown',e=>{
@@ -6529,5 +7195,165 @@ try{
   alert('启动失败: '+err.message);
 }
 </script>
+<!-- ========== OBJ 导入健壮性补丁 v1.2 ========== -->
+<script>
+(function () {
+  'use strict';
+  const TAG = '[OBJ补丁]';
+
+  function toast(msg, isErr) {
+    let box = document.getElementById('objpatch-toast');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'objpatch-toast';
+      Object.assign(box.style, {
+        position: 'fixed', left: '50%', bottom: '80px', transform: 'translateX(-50%)',
+        zIndex: 999999, padding: '10px 18px', borderRadius: '8px',
+        fontSize: '14px', color: '#fff', pointerEvents: 'none',
+        transition: 'opacity .3s', opacity: '0', maxWidth: '72vw',
+        whiteSpace: 'pre-line', fontFamily: 'sans-serif'
+      });
+      document.body.appendChild(box);
+    }
+    box.style.background = isErr ? 'rgba(200,40,40,.94)' : 'rgba(30,120,60,.94)';
+    box.textContent = msg;
+    box.style.opacity = '1';
+    clearTimeout(box._t);
+    box._t = setTimeout(() => box.style.opacity = '0', 7000);
+  }
+
+  function decodeSmart(buf) {
+    const u8 = new Uint8Array(buf);
+    const head = new TextDecoder('utf-8').decode(buf.slice(0, 1024));
+    if (u8[0] === 0x1f && u8[1] === 0x8b) throw new Error('是 gzip 压缩包，请先解压');
+    if (/ISO-10303-21/i.test(head)) throw new Error('实际是 STEP 格式，请先转网格（FreeCAD → Mesh 工作台）');
+    let text;
+    if (u8[0] === 0xff && u8[1] === 0xfe) text = new TextDecoder('utf-16le').decode(buf);
+    else if (u8[0] === 0xfe && u8[1] === 0xff) text = new TextDecoder('utf-16be').decode(buf);
+    else {
+      text = new TextDecoder('utf-8').decode(buf);
+      if (text.includes('\uFFFD')) {
+        try { const g = new TextDecoder('gbk').decode(buf); if (!g.includes('\uFFFD')) text = g; } catch (e) {}
+      }
+    }
+    return text;
+  }
+
+  // 数值是否有效：Number() 能捕获 1.#IND / NaN / 1e999(inf)，parseFloat 反而会漏
+  function numOK(s) { const n = Number(s); return Number.isFinite(n); }
+
+  // ---------- ★核心：清洗 NURBS 块 + 剔除坏顶点并重映射所有索引 ----------
+  function sanitizeOBJ(text) {
+    const lines = text.replace(/\r\n?/g, '\n').split('\n');
+    const out = [];
+    const remap = [];          // remap[旧索引-1] = 新索引(1基) 或 0
+    let newV = 0, badV = 0, curveLines = 0, fKept = 0, fDropped = 0, mtllib = 0;
+    // NURBS/曲线专属标签：three.js 全部不支持，整行剔除
+    const curveTag = /^(cstype|deg|curv|curv2|surf|scrv|ncrv|parm|end|vp|sp|ctech|stech|shadowobj|traceobj)\b/i;
+
+    for (const raw of lines) {
+      const t = raw.trim();
+      if (!t || t.startsWith('#')) { out.push(raw); continue; }
+
+      if (curveTag.test(t)) { curveLines++; continue; }
+      if (/^mtllib\b/i.test(t) || /^usemtl\b/i.test(t)) { mtllib++; continue; }
+
+      // 顶点：坏行剔除并记入重映射表（索引必须连续，否则后续 f 全错位）
+      if (/^v\b/i.test(t)) {
+        const p = t.slice(2).trim().split(/[\s\t]+/);
+        if (p.length >= 3 && numOK(p[0]) && numOK(p[1]) && numOK(p[2])) {
+          newV++; remap.push(newV);
+          out.push('v ' + Number(p[0]) + ' ' + Number(p[1]) + ' ' + Number(p[2]));
+        } else { badV++; remap.push(0); }
+        continue;
+      }
+
+      // 面 / 线 / 点：重映射顶点索引，任何引用了坏顶点的整行剔除
+      if (/^(f|l|p)\b/i.test(t)) {
+        const tag = t.split(/[\s\t]+/)[0];
+        const toks = t.slice(tag.length).trim().split(/[\s\t]+/);
+        let ok = true;
+        const mapped = toks.map(tok => {
+          const parts = tok.split('/');
+          let vi = parseInt(parts[0], 10);
+          if (Number.isNaN(vi)) { ok = false; return tok; }
+          const old = vi > 0 ? vi : remap.length + vi + 1;   // 支持负索引
+          const nn = (old >= 1 && old <= remap.length) ? remap[old - 1] : 0;
+          if (!nn) { ok = false; return tok; }
+          parts[0] = String(nn);
+          return parts.join('/');
+        });
+        if (!ok || mapped.length < 3) { fDropped++; continue; }
+        out.push(tag + ' ' + mapped.join(' '));
+        fKept++;
+        continue;
+      }
+      out.push(raw);   // vn/vt/o/g/s 等原样保留
+    }
+
+    return { text: out.join('\n'), stats: { newV, badV, curveLines, fKept, fDropped, mtllib } };
+  }
+
+  async function patchFiles(fileList) {
+    const fixed = [];
+    for (const f of fileList) {
+      const lower = f.name.toLowerCase();
+      if (/\.(stp|step|iges|igs)$/.test(lower)) {
+        toast(`❌ ${f.name}：STEP/IGES 是精确 CAD 格式，本程序不支持。\n用 FreeCAD 打开 → Mesh 工作台 → 转网格 → 导出 OBJ/STL；或原 CAD 直接「另存为 STL」`, true);
+        continue;
+      }
+      if (!lower.endsWith('.obj')) { fixed.push(f); continue; }
+      try {
+        const text = decodeSmart(await f.arrayBuffer());
+        const { text: clean, stats } = sanitizeOBJ(text);
+        if (stats.fKept === 0) {
+          if (stats.curveLines > 0)
+            throw new Error('文件只含 B 样条曲线（NURBS），没有任何网格面。\n曲线无法在网页中显示——请在 CAD 软件中把曲面「细分/离散」为网格后再导出 OBJ/STL');
+          throw new Error('没有找到任何 f 面/顶点数据，请确认是文本格式 OBJ');
+        }
+        const nf2 = new File([clean], f.name.replace(/\.obj$/i, '.obj'), { type: 'text/plain' });
+        const notes = [];
+        if (stats.curveLines) notes.push(`剔除 NURBS 曲线块 ${stats.curveLines} 行（three.js 不支持曲线，仅保留网格）`);
+        if (stats.badV) notes.push(`剔除坏顶点 ${stats.badV} 个（NaN/#IND/INF）`);
+        if (stats.fDropped) notes.push(`剔除坏面 ${stats.fDropped} 个（引用了坏顶点）`);
+        if (stats.mtllib) notes.push(`剥离 mtl 引用 ${stats.mtllib} 行`);
+        toast(`✔ ${f.name} 预检通过：顶点 ${stats.newV} · 面 ${stats.fKept}` + (notes.length ? `\n${notes.join(' · ')}` : ''));
+        fixed.push(nf2);
+      } catch (err) {
+        toast(`❌ ${f.name} 导入被补丁拦截：\n${err.message}`, true);
+        console.error(TAG, err);
+      }
+    }
+    return fixed;
+  }
+
+  function install() {
+    document.addEventListener('change', async (e) => {
+      const input = e.target;
+      if (!(input instanceof HTMLInputElement) || input.type !== 'file' || !input.files || !input.files.length) return;
+      if (input.dataset && input.dataset.objclean === '1') {
+        delete input.dataset.objclean;   // 第二次重投：内容已清洗，放行给正常导入流程
+        return;
+      }
+      if (!Array.from(input.files).some(f => /\.(obj|stp|step|iges|igs)$/i.test(f.name))) return;
+      e.stopImmediatePropagation();
+      const fixed = await patchFiles(Array.from(input.files));
+      if (fixed.length) {
+        const dt = new DataTransfer();
+        fixed.forEach(f => dt.items.add(f));
+        if (input.dataset) input.dataset.objclean = '1';
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }, true);
+    console.log(TAG, 'v1.2 已安装：NURBS 曲线块清洗 + 坏顶点剔除 + 全量索引重映射');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install);
+  else install();
+})();
+</script>
+<!-- ========== 补丁结束 ========== -->
+
 </body>
 </html>
